@@ -41,6 +41,8 @@ struct pcap_writer : public record_writer
     {
         if (!os.good())
             return -1;
+        if (time.is_keyframe && !options.write_keyframes)
+            return 0;
 
         if (time.hw_nanos)
         {
