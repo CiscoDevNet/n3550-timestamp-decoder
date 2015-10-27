@@ -13,7 +13,7 @@ $(OBJDIR)/%.o: %.cpp
 
 .PHONY: all
 
-all: capture-hw-time 
+all: timestamp-decoder 
 
 .PHONY: clean
 clean:
@@ -22,7 +22,7 @@ clean:
 # file dependencies
 -include $(FILES_OBJ:.o=.d)
 
-capture-hw-time: $(OBJDIR)/exe/capture-hw-time.o $(FILES_OBJ)
+timestamp-decoder: $(OBJDIR)/exe/timestamp-decoder.o $(FILES_OBJ)
 	@mkdir -p $(@D)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $(OBJDIR)/$@
 
