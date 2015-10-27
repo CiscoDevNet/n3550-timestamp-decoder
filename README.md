@@ -1,7 +1,7 @@
 timestamp-decoder
 =================
 
-This utility decodes the [ExaLINK Fusion](www.exablaze.com.exalink-fusion)  timestamped output stream.  It can capture & decode timestamped traffic directly using an [ExaNIC](http://exablaze.com/exanic-x10) interface or it can load in a pcap file.
+This utility decodes the [ExaLINK Fusion](http://exablaze.com/exalink-fusion)  timestamped output stream.  It can capture & decode timestamped traffic directly using an [ExaNIC](http://exablaze.com/exanic-x10) interface or it can load in a pcap file.
 
 The ExaLINK Fusion allows any packets flowing through it to be mirrored out to a port, where timestamping can then be enabled.  The timestamp format used is replacement of the Ethernet FCS with a 32bit counter value.  This counter value is based off a 350MHz clock, resulting in a timestamp resolution of ~2.6ns.  
 
