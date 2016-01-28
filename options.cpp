@@ -13,6 +13,7 @@ std::string options::to_str() const
        << " date:'" << write.text_date_format << "'"
        << " count:" << count
        << " all:" << write.write_keyframes
+       << " offset:" << process.time_offset_end
        << " }";
     return os.str();
 }
@@ -28,6 +29,7 @@ int options::parse(int argc, char** argv)
         { "write", required_argument, 0, 'w'},
         { "date", required_argument, 0, 'd'},
         { "count", required_argument, 0, 'c'},
+        { "offset", required_argument, 0, 'o'},
         { 0,0,0,0 }
     };
 
@@ -65,6 +67,14 @@ int options::parse(int argc, char** argv)
         case 'a':
             write.write_keyframes = true;
             break;
+        case 'o':
+            process.time_offset_end = std::atoi(optarg);
+            if (process.time_offset_end != 4 && process.time_offset_end != 8)
+            {
+                std::cerr << "expected offset to be 4 or 8" << std::endl;
+                return -1;
+            }
+            break;
         case 'h':
             return 0;
         default:
@@ -87,6 +97,7 @@ std::string options::usage_str()
        << "  --count <arg>   number of records to read\n"
        << "  --date <arg>    date-time format to use for output\n"
        << "  --all           write keyframe packets\n"
+       << "  --offset <arg>  hw timestamp offset from the end of the packet\n"
        << "  --verbose, -v   be verbose\n"
        << "  --help,    -h   show this help and exit";
     return os.str();

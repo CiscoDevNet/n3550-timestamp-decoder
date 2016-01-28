@@ -77,7 +77,7 @@ int main(int argc, char** argv)
             else if (timed.status > 0)
             {
                 if (opt.verbose > 2)
-                    std::cerr << "recoverable problem processing: " << timed.status << std::endl;
+                    std::cerr << "recoverable problem processing: " << timed.status << ' ' << timed.status_str() << std::endl;
                 continue;
             }
             else

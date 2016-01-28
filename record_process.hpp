@@ -15,8 +15,9 @@ struct record_time_t
         record_too_short = 1,
         record_truncated = 2,
         record_no_fcs = 3,
-        record_fcs_zero = 4,
-        missing_recent_keyframe = 4,
+        record_time_zero = 4,
+        record_time_missing = 5,
+        missing_recent_keyframe = 6,
     };
 
     int status;
@@ -30,6 +31,8 @@ struct record_time_t
     , fixed_fcs(false)
     , hw_nanos(0)
     {}
+
+    const char* status_str() const;
 };
 
 struct record_process

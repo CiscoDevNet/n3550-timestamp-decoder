@@ -65,6 +65,25 @@ struct compat_keyframe
 #  error Unknown byte order
 #endif
 
+const char* record_time_t::status_str() const
+{
+    switch (status)
+    {
+    case unsupported_keyframe: return "unsupported_keyframe";
+    case unsupported_linktype: return "unsupported_linktype";
+    case unspecified: return "unspecified";
+    case ok: return "ok";
+    case record_too_short: return "record_too_short";
+    case record_truncated: return "record_truncated";
+    case record_no_fcs: return "record_no_fcs";
+    case record_time_zero: return "record_time_zero";
+    case record_time_missing: return "record_time_missing";
+    case missing_recent_keyframe: return "missing_recent_keyframe";
+    default:
+        return "unknown";
+    }
+}
+
 record_process::record_process(const process_options& opt)
 : options_(opt)
 , keyframe_()
@@ -141,14 +160,11 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     if (eth_type == exa_keyframe::kf_ether_type)
         return process_exa_keyframe(record, ptr, end-ptr);
 
-    const ip_header_t* ip = nullptr;
-    uint32_t* packet_fcs = nullptr;
-
     // ip v4 packet starts with version info equating to 0x45
     const uint32_t len_eth_ip = sizeof(eth_header_t) + sizeof(ip_header_t);
     if (eth_type == 0x0800 && *ptr == 0x45 && record.len_capture >= len_eth_ip)
     {
-        ip = reinterpret_cast<const ip_header_t*>(ptr);
+        const ip_header_t* ip = reinterpret_cast<const ip_header_t*>(ptr);
         const uint32_t ip_len = ntohs(ip->ip_len);
         ptr += sizeof(ip_header_t);
 
@@ -164,34 +180,17 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
                 return process_compat_keyframe(record, ptr, end-ptr);
             // else treat as normal ip packet
         }
+    }
 
-        // determine if we have a FCS, need all data, lengths already checked
-        const int trailing = record.len_capture - ip_len - sizeof(eth_header_t);
-        if (options_.time_preceeds_fcs)
-        {
-            if (trailing >= 8)
-                packet_fcs = reinterpret_cast<uint32_t*>(end - 8);
-        }
-        else if (trailing >= 4)
-            packet_fcs = reinterpret_cast<uint32_t*>(end - 4);
-    }
-    else if (eth_type == 0x0806 && record.len_capture >= sizeof(eth_header_t) + sizeof(arp_header_t))
-    {
-        // determine if we have a FCS, need all data, lengths already checked
-        const int trailing = record.len_capture - sizeof(eth_header_t) - sizeof(arp_header_t);
-        if (options_.time_preceeds_fcs)
-        {
-            if (trailing >= 8)
-                packet_fcs = reinterpret_cast<uint32_t*>(end - 8);
-        }
-        else if (trailing >= 4)
-            packet_fcs = reinterpret_cast<uint32_t*>(end - 4);
-    }
-    // TODO: extend here for ip v6
+    uint32_t* packet_fcs = reinterpret_cast<uint32_t*>(end - 4);
+    uint32_t* hw_time = reinterpret_cast<uint32_t*>(end - options_.time_offset_end);
 
     // fallen through, so not a keyframe
     record_time_t result(record_time_t::ok);
     //result.is_keyframe = false;
+
+    // require all packets to have an FCS, which we check first
+    uint32_t correct_fcs = crc32(0, buffer, (const char*)packet_fcs - buffer);
 
     if (options_.use_clock_times)
     {
@@ -199,9 +198,11 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     }
     else
     {
-        if (!packet_fcs)
+        // check that we have a hardware timestamp
+        if (packet_fcs == hw_time && correct_fcs == *hw_time)
         {
-            result.status = record_time_t::record_no_fcs;
+            // no hardware timestamp
+            result.status = record_time_t::record_time_missing;
             return result;
         }
 
@@ -214,15 +215,16 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
             return result;
         }
 
-        int64_t ticks = ntohl(*packet_fcs);
+        int64_t ticks = ntohl(*hw_time);
         if (!ticks)
         {
-            result.status = record_time_t::record_fcs_zero;
+            // hw_time is never zero
+            result.status = record_time_t::record_time_zero;
             return result;
         }
         else
         {
-            if (keyframe_.arista_compat || options_.arista_compat_fcs)
+            if (keyframe_.arista_compat)
             {
                 ticks = ((ticks & ~0xff) >> 1) + (ticks & 0x7f);
                 ticks -= (keyframe_.counter & 0x7fffffff);
@@ -242,9 +244,8 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
         }
     }
 
-    if (options_.fix_fcs && packet_fcs)
+    if (options_.fix_fcs && correct_fcs != *packet_fcs)
     {
-        uint32_t correct_fcs = crc32(0, buffer, (const char*)packet_fcs - buffer);
         // copy into buffer
         *packet_fcs = correct_fcs;
         result.fixed_fcs = true;

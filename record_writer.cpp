@@ -145,7 +145,7 @@ struct text_writer : public record_writer
             {
                 // take care about uint64_t's maths
                 int64_t diff = time.hw_nanos - record.clock_nanos;
-                os << " " << std::setprecision(9) << std::fixed << (diff/1e9);
+                os << " " << std::setprecision(9) << std::fixed << std::showpos << (diff/1e9);
                 os << ")";
             }
         }

@@ -13,11 +13,9 @@ struct read_options
 struct process_options
 {
     int verbose = 0;
-    bool arista_compat_fcs = false;
     bool fix_fcs = true;
-    bool time_preceeds_fcs = false;
     bool use_clock_times = false;
-    bool infer_keyframe_hw_time = false;
+    int time_offset_end = 4;
 };
 
 struct write_options

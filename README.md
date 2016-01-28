@@ -1,11 +1,18 @@
 timestamp-decoder
 =================
 
-This utility decodes the [ExaLINK Fusion](http://exablaze.com/exalink-fusion)  timestamped output stream.  It can capture & decode timestamped traffic directly using an [ExaNIC](http://exablaze.com/exanic-x10) interface or it can load in a pcap file.
+This utility decodes the [ExaLINK Fusion](http://exablaze.com/exalink-fusion)  
+timestamped output stream.  It can capture & decode timestamped traffic 
+directly using an [ExaNIC](http://exablaze.com/exanic-x10) interface or it 
+can load in a pcap file.
 
-The ExaLINK Fusion allows any packets flowing through it to be mirrored out to a port, where timestamping can then be enabled.  The timestamp format used is replacement of the Ethernet FCS with a 32bit counter value.  This counter value is based off a 350MHz clock, resulting in a timestamp resolution of ~2.6ns.  
+The ExaLINK Fusion allows any packets flowing through it to be mirrored out 
+to a port, where timestamping can then be enabled.  The timestamp format used 
+is replacement of the Ethernet FCS with a 32bit counter value.  This counter 
+value is based off a 350MHz clock, resulting in a timestamp resolution of ~2.6ns.  
 
-Every second, The ExaLINK Fusion will send a special packet called a keyframe, which maps the counter value to nanosecond UTC time.
+Every second, The ExaLINK Fusion will send a special packet called a 
+keyframe, which maps the counter value to nanosecond UTC time.
 
 ## Requirements
 
@@ -40,7 +47,8 @@ Usage: ./build/timestamp-decoder
 
 `$ build/timestamp-decoder --read exanic0:0 --write decode.pcap`
 
-* Configure interface `eth2` to receive frames with a bad FCS, receive 60s worth of data, then decode & write out (note not all interfaces will support this ethtool option):
+* Configure interface `eth2` to receive frames with a bad FCS, receive 60s 
+worth of data, then decode & write out (note not all interfaces will support this ethtool option):
 
 ```shell
 $ sudo ethtool -K eth2 rx-fcs on
