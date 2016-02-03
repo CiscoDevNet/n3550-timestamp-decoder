@@ -93,11 +93,11 @@ std::string options::usage_str()
 {
     std::ostringstream os;
     os << "  --read <arg>    pcap file input, or exanic interface name\n"
-       << "  --write <arg>   file for output, - for std out, and ending in .pcap\n"
+       << "  --write <arg>   file for output, - for std out, or ending in .pcap\n"
        << "  --count <arg>   number of records to read\n"
        << "  --date <arg>    date-time format to use for output\n"
        << "  --all           write keyframe packets\n"
-       << "  --offset <arg>  hw timestamp offset from the end of the packet\n"
+       << "  --offset <arg>  hw timestamp offset, 4 for FCS, and 8 for append modes\n"
        << "  --verbose, -v   be verbose\n"
        << "  --help,    -h   show this help and exit";
     return os.str();

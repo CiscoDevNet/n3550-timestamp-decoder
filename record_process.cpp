@@ -15,7 +15,7 @@ struct exa_keyframe
     enum
     {
         kf_version = 1,
-        kf_magic = 0x45584B46,
+        kf_magic = 0x464b5845, 
         kf_ether_type = 0x88B5,
         kf_proto = 253 // depends on fusion version
     };
