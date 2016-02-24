@@ -83,11 +83,15 @@ int main(int argc, char** argv)
             else
             {
                 assert(timed.status == record_time_t::ok);
-                if (writer->write(timed, record, buffer))
+                const int err = writer->write(timed, record, buffer);
+                if (err < 0)
                     break;
-                ++count_packet_out;
-                if (count_packet_out == opt.count)
-                    break;
+                else if (!err)
+                {
+                    ++count_packet_out;
+                    if (count_packet_out == opt.count)
+                        break;
+                }
             }
         }
     }

@@ -7,13 +7,14 @@ std::string options::to_str() const
 {
     std::ostringstream os;
     os << "{"
-       << " verbose:" << (int)verbose
+       << " verbose:" << verbose
        << " read:'" << read.source << "'"
        << " write:'" << write.dest << "'"
        << " date:'" << write.text_date_format << "'"
        << " count:" << count
        << " all:" << write.write_keyframes
        << " offset:" << process.time_offset_end
+       << " fcs:" << ((process.ignore_fcs || !process.fix_fcs)? "ignore" : "check")
        << " }";
     return os.str();
 }
@@ -30,6 +31,7 @@ int options::parse(int argc, char** argv)
         { "date", required_argument, 0, 'd'},
         { "count", required_argument, 0, 'c'},
         { "offset", required_argument, 0, 'o'},
+        { "ignore-fcs", no_argument, 0, 'f'},
         { 0,0,0,0 }
     };
 
@@ -75,6 +77,9 @@ int options::parse(int argc, char** argv)
                 return -1;
             }
             break;
+        case 'f':
+            process.ignore_fcs = true;
+            break;
         case 'h':
             return 0;
         default:
@@ -94,10 +99,11 @@ std::string options::usage_str()
     std::ostringstream os;
     os << "  --read <arg>    pcap file input, or exanic interface name\n"
        << "  --write <arg>   file for output, - for std out, or ending in .pcap\n"
-       << "  --count <arg>   number of records to read\n"
+       << "  --count <arg>   number of records to read, 0 for all\n"
        << "  --date <arg>    date-time format to use for output\n"
-       << "  --all           write keyframe packets\n"
-       << "  --offset <arg>  hw timestamp offset, 4 for FCS, and 8 for append modes\n"
+       << "  --all           write all packets, including keyframes\n"
+       << "  --offset <arg>  hw timestamp offset, 4 or 8 depending on mode/FCS capture\n"
+       << "  --ignore-fcs    use this to skip FCS checks\n"
        << "  --verbose, -v   be verbose\n"
        << "  --help,    -h   show this help and exit";
     return os.str();

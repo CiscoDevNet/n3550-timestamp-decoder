@@ -16,6 +16,7 @@ struct process_options
     bool fix_fcs = true;
     bool use_clock_times = false;
     int time_offset_end = 4;
+    bool ignore_fcs = false;
 };
 
 struct write_options

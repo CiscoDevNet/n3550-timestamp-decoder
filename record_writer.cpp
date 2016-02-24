@@ -42,7 +42,7 @@ struct pcap_writer : public record_writer
         if (!os.good())
             return -1;
         if (time.is_keyframe && !options.write_keyframes)
-            return 0;
+            return +1;
 
         if (time.hw_nanos)
         {
@@ -134,7 +134,7 @@ struct text_writer : public record_writer
         if (!os.good())
             return -1;
         if (time.is_keyframe && !options.write_keyframes)
-            return 0;
+            return +1;
 
         write_time(time.hw_nanos);
         if (options.write_clock_times)

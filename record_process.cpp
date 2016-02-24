@@ -15,7 +15,7 @@ struct exa_keyframe
     enum
     {
         kf_version = 1,
-        kf_magic = 0x464b5845, 
+        kf_magic = 0x464b5845,
         kf_ether_type = 0x88B5,
         kf_proto = 253 // depends on fusion version
     };
@@ -183,14 +183,14 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     }
 
     uint32_t* packet_fcs = reinterpret_cast<uint32_t*>(end - 4);
-    uint32_t* hw_time = reinterpret_cast<uint32_t*>(end - options_.time_offset_end);
+    const uint32_t* hw_time = reinterpret_cast<const uint32_t*>(end - options_.time_offset_end);
 
     // fallen through, so not a keyframe
     record_time_t result(record_time_t::ok);
-    //result.is_keyframe = false;
 
-    // require all packets to have an FCS, which we check first
-    uint32_t correct_fcs = crc32(0, buffer, (const char*)packet_fcs - buffer);
+    // find correct FCS, unless ignoring FCS's
+    const uint32_t correct_fcs = (options_.ignore_fcs)? 0 :
+                                 crc32(0, buffer, (const char*)packet_fcs - buffer);
 
     if (options_.use_clock_times)
     {
@@ -198,19 +198,21 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     }
     else
     {
-        // check that we have a hardware timestamp
-        if (packet_fcs == hw_time && correct_fcs == *hw_time)
+        // check that we have a hardware timestamp in fcs, if in FCS mode, and
+        // not ignoring fcs
+        if (correct_fcs && packet_fcs == hw_time && correct_fcs == *hw_time)
         {
-            // no hardware timestamp
+            // no hardware timestamp in fcs, when there was one expected
             result.status = record_time_t::record_time_missing;
             return result;
         }
 
         // keyframe stored in clock time, not hardware time
         int64_t nanos_last_keyframe = record.clock_nanos - keyframe_.clock_nanos;
-        // keyframes published every second
+        // keyframes published every second, allow for some missing
         if (nanos_last_keyframe > static_cast<int64_t>(5*nanos_per_sec))
         {
+            // missed too many keyframes
             result.status = record_time_t::missing_recent_keyframe;
             return result;
         }
@@ -244,7 +246,7 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
         }
     }
 
-    if (options_.fix_fcs && correct_fcs != *packet_fcs)
+    if (options_.fix_fcs && correct_fcs && correct_fcs != *packet_fcs)
     {
         // copy into buffer
         *packet_fcs = correct_fcs;

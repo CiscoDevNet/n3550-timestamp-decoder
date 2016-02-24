@@ -23,7 +23,7 @@ keyframe, which maps the counter value to nanosecond UTC time.
 
 ## Building
 
-`make`
+`make clean all`
 
 ## Usage
 
@@ -32,26 +32,38 @@ $ ./build/timestamp-decoder
 Usage: ./build/timestamp-decoder
   --read <arg>    pcap file input, or exanic interface name
   --write <arg>   file for output, - for std out, or ending in .pcap
-  --count <arg>   number of records to read
+  --count <arg>   number of records to read, 0 for all
   --date <arg>    date-time format to use for output
-  --all           write keyframe packets
-  --offset <arg>  hw timestamp offset, 4 for FCS, and 8 for append modes
+  --all           write all packets, including keyframes
+  --offset <arg>  hw timestamp offset, 4 or 8 depending on mode/FCS capture
+  --ignore-fcs    use this to skip FCS checks
   --verbose, -v   be verbose
   --help,    -h   show this help and exit
 ```
 
 ## Examples
 
-* Read data from exanic0:0 and decode+dump to stdout (mirror timestamp modes `fcs` or `fcs-compat`):
+* Read data from exanic0:0 and decode+dump to stdout
+(mirror timestamp modes `fcs` or `fcs-compat`):
 
 `$ build/timestamp-decoder --read exanic0:0 --write -`
 
-* Read data from exanic0:0 and decode+write to a pcap file (mirror timetamp modes `append` or `append-compat`):
+* Read data from exanic0:0 and decode+write to a pcap file
+(mirror timetamp modes `append` or `append-compat`):
 
 `$ build/timestamp-decoder --read exanic0:0 --write decode.pcap --offset 8`
 
+* Capture 60s worth of data from an interface that does not capture FCS,
+then decode+dump to stdout (mirror timetamp modes `append` or `append-compat`):
+
+```shell
+$ sudo timeout 60 tcpdump -i eth0 -w raw.pcap
+$ build/timestamp-decoder --read raw.pcap --write - --ignore-fcs
+```
+
 * Configure interface `eth2` to receive frames with a bad FCS, receive 60s
-worth of data, then decode & write out (note not all interfaces will support this ethtool option):
+worth of data (mirror timestamp modes `fcs` or `fcs-compat`), then decode & write
+out (note not all interfaces will support this ethtool option):
 
 ```shell
 $ sudo ethtool -K eth2 rx-fcs on

@@ -21,7 +21,7 @@ struct record_writer
     
     virtual std::string type() const = 0;
     
-    // return non-zero on error
+    // return zero on success, negative for an error, positive if the record is ignored
     virtual int write(const record_time_t& time, const read_record_t& record, const char* buffer) = 0;
 };
 
