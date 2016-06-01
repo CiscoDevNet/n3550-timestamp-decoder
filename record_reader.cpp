@@ -23,22 +23,22 @@ struct pcap_record_reader : public record_reader
     , nanos(false)
     {
         if (!is.good())
-            throw std::invalid_argument("could not open file");
+            throw std::invalid_argument(std::string("could not open file"));
         pcap_file_header_t header;
         is.read((char*)&header, sizeof(header));
         if (!is.good())
-            throw std::invalid_argument("could not read pcap header");
+            throw std::invalid_argument(std::string("could not read pcap header"));
         
         if (header.version_major != 2 || header.version_minor != 4)
-            throw std::invalid_argument("unsupported pcap version");
+            throw std::invalid_argument(std::string("unsupported pcap version"));
         
         if (header.linktype != DLT_EN10MB)
-            throw std::invalid_argument("unsupported pcap linktype");
+            throw std::invalid_argument(std::string("unsupported pcap linktype"));
         
         if (header.magic == pcap_magic_t::nanos_magic)
             nanos = true;
         else if (header.magic != pcap_magic_t::micro_magic)
-            throw std::invalid_argument("unsupported pcap architecture");
+            throw std::invalid_argument(std::string("unsupported pcap architecture"));
     }
     
     virtual ~pcap_record_reader()
@@ -100,19 +100,19 @@ struct exanic_reader : public record_reader
         if (exanic_find_port_by_interface_name(interface.c_str(), device, sizeof(device), &devport)
             && parse_device_port(interface, device, sizeof(device), devport))
         {
-            throw std::invalid_argument("could not find interface");
+            throw std::invalid_argument(std::string("could not find interface"));
         }
         
         exa = exanic_acquire_handle(device);
         if (!exa)
-            throw std::invalid_argument("could not acquire device");
+            throw std::invalid_argument(std::string("could not acquire device"));
         
         rx = exanic_acquire_rx_buffer(exa, devport, 0);
         if (!rx)
         {
             exanic_release_handle(exa);
             exa = nullptr;
-            throw std::invalid_argument("could not acquire rx buffer");
+            throw std::invalid_argument(std::string("could not acquire rx buffer"));
         }
     }
     

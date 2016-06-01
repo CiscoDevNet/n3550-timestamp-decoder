@@ -21,7 +21,7 @@ struct pcap_writer : public record_writer
     , os(opt.dest, std::ofstream::trunc)
     {
         if (!os.good())
-            throw std::invalid_argument("could not create pcap file");
+            throw std::invalid_argument(std::string("could not create pcap file"));
         pcap_file_header_t header;
         header.version_major = 2;
         header.version_minor = 4;
@@ -32,7 +32,7 @@ struct pcap_writer : public record_writer
         header.snaplen = 0xffff;
         os.write((const char*)&header, sizeof(header));
         if (!os.good())
-            throw std::invalid_argument("could not write to pcap file");
+            throw std::invalid_argument(std::string("could not write to pcap file"));
     }
 
     std::string type() const override { return "pcap"; }
@@ -74,7 +74,7 @@ struct text_writer : public record_writer
         else
             os.open(options.dest);
         if (!os.good())
-            throw std::invalid_argument("could not open destination for writing");
+            throw std::invalid_argument(std::string("could not open destination for writing"));
     }
 
     std::string type() const override { return "text"; }
@@ -83,7 +83,11 @@ struct text_writer : public record_writer
     {
         std::time_t ts = nanos / nanos_per_sec;
         std::tm tm = *std::gmtime(&ts);
-        os << std::put_time(&tm, options.text_date_format.c_str()) << '.';
+        char buffer[128];
+        std::size_t written = strftime(buffer, 128, options.text_date_format.c_str(), &tm);
+        if (!written)
+            throw std::invalid_argument(std::string("bad time format string"));
+        os << buffer << '.';
         os << std::setfill('0');
         nanos %= nanos_per_sec;
         if (options.write_micros)
