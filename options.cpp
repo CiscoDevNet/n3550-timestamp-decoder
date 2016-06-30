@@ -23,23 +23,23 @@ int options::parse(int argc, char** argv)
 {
     static struct option long_options[] =
     {
-        { "verbose", no_argument, 0, 'v'},
-        { "help", no_argument, 0, 'h'},
-        { "all", no_argument, 0, 'a'},
-        { "read", required_argument, 0, 'r'},
-        { "write", required_argument, 0, 'w'},
-        { "date", required_argument, 0, 'd'},
-        { "count", required_argument, 0, 'c'},
-        { "offset", required_argument, 0, 'o'},
-        { "ignore-fcs", no_argument, 0, 'f'},
-        { 0,0,0,0 }
+        {"verbose",    no_argument,       0, 'v'},
+        {"help",       no_argument,       0, 'h'},
+        {"all",        no_argument,       0, 'a'},
+        {"read",       required_argument, 0, 'r'},
+        {"write",      required_argument, 0, 'w'},
+        {"date",       required_argument, 0, 'd'},
+        {"count",      required_argument, 0, 'c'},
+        {"offset",     required_argument, 0, 'o'},
+        {"ignore-fcs", no_argument,       0, 'f'},
+        {0, 0,                            0, 0}
     };
 
     int n = 0;
     while (1)
     {
         int index = 0;
-        int c = getopt_long(argc, argv, "vh", long_options, &index);
+        int c = getopt_long(argc, argv, "vh?", long_options, &index);
         if (c == -1)
             break;
         switch (c)
@@ -80,6 +80,7 @@ int options::parse(int argc, char** argv)
         case 'f':
             process.ignore_fcs = true;
             break;
+        case '?':
         case 'h':
             return 0;
         default:
@@ -102,9 +103,11 @@ std::string options::usage_str()
        << "  --count <arg>   number of records to read, 0 for all\n"
        << "  --date <arg>    date-time format to use for output\n"
        << "  --all           write all packets, including keyframes\n"
-       << "  --offset <arg>  hw timestamp offset, 4 or 8 depending on mode/FCS capture\n"
+       << "  --offset <arg>  hw timestamp offset from the end of packet:\n"
+       << "                  4 if the timestamp mode is FCS,\n"
+       << "                  8 if the timestamp mode is append\n"
        << "  --ignore-fcs    use this to skip FCS checks\n"
-       << "  --verbose, -v   be verbose\n"
+       << "  --verbose, -v   specify more often to be more verbose\n"
        << "  --help,    -h   show this help and exit";
     return os.str();
 }

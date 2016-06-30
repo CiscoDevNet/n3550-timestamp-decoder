@@ -69,16 +69,16 @@ const char* record_time_t::status_str() const
 {
     switch (status)
     {
-    case unsupported_keyframe: return "unsupported_keyframe";
-    case unsupported_linktype: return "unsupported_linktype";
-    case unspecified: return "unspecified";
-    case ok: return "ok";
-    case record_too_short: return "record_too_short";
-    case record_truncated: return "record_truncated";
-    case record_no_fcs: return "record_no_fcs";
-    case record_time_zero: return "record_time_zero";
-    case record_time_missing: return "record_time_missing";
-    case missing_recent_keyframe: return "missing_recent_keyframe";
+    case unsupported_keyframe:      return "unsupported_keyframe";
+    case unsupported_linktype:      return "unsupported_linktype";
+    case unspecified:               return "unspecified";
+    case ok:                        return "ok";
+    case record_too_short:          return "record_too_short";
+    case record_truncated:          return "record_truncated";
+    case record_no_fcs:             return "record_no_fcs";
+    case record_time_zero:          return "record_time_zero";
+    case record_time_missing:       return "record_time_missing";
+    case missing_recent_keyframe:   return "missing_recent_keyframe";
     default:
         return "unknown";
     }
@@ -162,13 +162,16 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
 
     // ip v4 packet starts with version info equating to 0x45
     const uint32_t len_eth_ip = sizeof(eth_header_t) + sizeof(ip_header_t);
-    if (eth_type == 0x0800 && *ptr == 0x45 && record.len_capture >= len_eth_ip)
+    if (eth_type == 0x0800 && *ptr == 0x45)
     {
+        if (record.len_capture < len_eth_ip)
+            return record_time_t(record_time_t::record_too_short);
+
         const ip_header_t* ip = reinterpret_cast<const ip_header_t*>(ptr);
         const uint32_t ip_len = ntohs(ip->ip_len);
         ptr += sizeof(ip_header_t);
 
-        if (ip->ip_p == exa_keyframe::kf_proto
+        if (ip->ip_p == compat_keyframe::ckf_proto
             && ip->ip_ttl == IPDEFTTL
             && ip->ip_dst.s_addr == compat_keyframe::ckf_dest
             && ip->ip_src.s_addr == compat_keyframe::ckf_src )
@@ -185,7 +188,7 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     uint32_t* packet_fcs = reinterpret_cast<uint32_t*>(end - 4);
     const uint32_t* hw_time = reinterpret_cast<const uint32_t*>(end - options_.time_offset_end);
 
-    // fallen through, so not a keyframe
+    // fallen through, so not a (recognised) keyframe
     record_time_t result(record_time_t::ok);
 
     // find correct FCS, unless ignoring FCS's

@@ -35,9 +35,11 @@ Usage: ./build/timestamp-decoder
   --count <arg>   number of records to read, 0 for all
   --date <arg>    date-time format to use for output
   --all           write all packets, including keyframes
-  --offset <arg>  hw timestamp offset, 4 or 8 depending on mode/FCS capture
+  --offset <arg>  hw timestamp offset from the end of packet:
+                  4 if the timestamp mode is FCS,
+                  8 if the timestamp mode is append
   --ignore-fcs    use this to skip FCS checks
-  --verbose, -v   be verbose
+  --verbose, -v   specify more often to be more verbose
   --help,    -h   show this help and exit
 ```
 
@@ -72,3 +74,30 @@ $ sudo timeout 60 tcpdump -i eth2 -w raw.pcap
 $ build/timestamp-decoder --read raw.pcap --write decode.pcap
 ```
 
+* Use verbose mode to diagnose a problem with getting timestamps. You can
+see from the packet dump, that the last four bytes match the expected FCS.
+In other words the FCS does not contain the timestamp, presumably append
+mode was used for timestamping, and so the solution is to run with `--offset 8`
+
+```shell
+$ # wrong offset
+$ ./build/timestamp-decoder --read test/exa.mode.append.pcap --write /tmp/t.pcap -vvv
+options: { verbose:3 read:'test/exa.mode.append.pcap' write:'/tmp/t.pcap' date:'%Y/%m/%d-%H:%M:%S' count:0 all:0 offset:4 fcs:check }
+recoverable problem processing record #27 (72 bytes): record_time_missing
+    ffffffffffffdead beeffeed08000000 0000000000000000 0000000000000000
+    0000400000000000 0100000010111213 1415161718191a1b 1c10111213141516
+    f18841ed32aa12f1     fcs=32aa12f1
+recoverable problem processing record #28 (72 bytes): record_time_missing
+    ffffffffffffdead beeffeed08000000 0000000000000000 0000000000000000
+    0000400000000000 0200000020212223 2425262728292a2b 2c20212223242526
+    f18842929eb4ba81     fcs=9eb4ba81
+recoverable problem processing record #29 (72 bytes): record_time_missing
+    ffffffffffffdead beeffeed08000000 0000000000000000 0000000000000000
+    0000400000000000 0300000030313233 3435363738393a3b 3c30313233343536
+    f1884331339794a1     fcs=339794a1
+Packets: read 37, key frames 33, written 0, errors 3
+$ # correct offset
+$ ./build/timestamp-decoder --read test/exa.mode.append.pcap --write /tmp/t.pcap -vvv --offset 8
+options: { verbose:3 read:'test/exa.mode.append.pcap' write:'/tmp/t.pcap' date:'%Y/%m/%d-%H:%M:%S' count:0 all:0 offset:8 fcs:check }
+Packets: read 37, key frames 33, written 3, errors 0
+```
