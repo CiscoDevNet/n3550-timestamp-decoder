@@ -16,7 +16,7 @@ struct exa_keyframe
     {
         kf_version = 1,
         kf_magic = 0x464b5845,
-        kf_ether_type = 0x88B5,
+        kf_ether_type = 0x88B5, // local experimental ethernet type
         kf_proto = 253 // depends on fusion version
     };
 
@@ -158,12 +158,16 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     ptr += sizeof(eth_header_t);
 
     if (eth_type == exa_keyframe::kf_ether_type)
-        return process_exa_keyframe(record, ptr, end-ptr);
-
-    // ip v4 packet starts with version info equating to 0x45
-    const uint32_t len_eth_ip = sizeof(eth_header_t) + sizeof(ip_header_t);
-    if (eth_type == 0x0800 && *ptr == 0x45)
     {
+        const record_time_t ret = process_exa_keyframe(record, ptr, end - ptr);
+        if (ret.status != record_time_t::unsupported_keyframe)
+            return ret;
+        // else fall through and try get the timestamp from the
+        // unrecognised packet
+    }
+    else if (eth_type == 0x0800 && *ptr == 0x45)
+    {
+        const uint32_t len_eth_ip = sizeof(eth_header_t) + sizeof(ip_header_t);
         if (record.len_capture < len_eth_ip)
             return record_time_t(record_time_t::record_too_short);
 
