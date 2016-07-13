@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
+#include <signal.h>
 #include "../options.hpp"
 #include "../record_reader.hpp"
 #include "../record_process.hpp"
@@ -15,6 +16,13 @@
  *      and one from exanic
  * The output is either to a pcap (fixed) or to file/screen.
  */
+
+static int g_running = 1;
+
+void signal_handler(int signal)
+{
+    g_running = 0;
+}
 
 enum struct return_value : int
 {
@@ -88,6 +96,12 @@ int main(int argc, char** argv)
     if (opt.verbose > 1)
         std::cout << "options: " << opt.to_str() << std::endl;
 
+    signal(SIGHUP, signal_handler);
+    signal(SIGINT, signal_handler);
+    signal(SIGPIPE, signal_handler);
+    signal(SIGALRM, signal_handler);
+    signal(SIGTERM, signal_handler);
+
     std::unique_ptr<record_reader> reader = record_reader::make(opt.read);
     if (!reader)
         return (int)return_value::initialisation;
@@ -105,11 +119,13 @@ int main(int argc, char** argv)
     size_t count_packet_out = 0;
     size_t count_errors = 0;
     size_t count_key_frames = 0;
-    while (true)
+    while (g_running)
     {
         read_record_t record = reader->next(buffer, buffer_len);
         if (record.status == read_record_t::again)
             continue;
+        else if (record.status == read_record_t::eof)
+            break;
 
         ++count_packet_in;
         if (record.status == read_record_t::ok)
@@ -166,8 +182,6 @@ int main(int argc, char** argv)
                 // else its a key frame that is intentionally skipped
             }
         }
-        else if (record.status == read_record_t::eof)
-            break;
         else if (record.status == read_record_t::error)
         {
             std::cerr << "problem reading record #" << count_packet_in << std::endl;

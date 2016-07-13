@@ -9,6 +9,7 @@ std::string options::to_str() const
     os << "{"
        << " verbose:" << verbose
        << " read:'" << read.source << "'"
+       << " promisc:" << read.promiscuous_mode
        << " write:'" << write.dest << "'"
        << " date:'" << write.text_date_format << "'"
        << " count:" << count
@@ -32,6 +33,7 @@ int options::parse(int argc, char** argv)
         {"count",      required_argument, 0, 'c'},
         {"offset",     required_argument, 0, 'o'},
         {"ignore-fcs", no_argument,       0, 'f'},
+        {"no-promisc", no_argument,       0, 'p'},
         {0, 0,                            0, 0}
     };
 
@@ -39,7 +41,7 @@ int options::parse(int argc, char** argv)
     while (1)
     {
         int index = 0;
-        int c = getopt_long(argc, argv, "vh?", long_options, &index);
+        int c = getopt_long(argc, argv, "pvh?", long_options, &index);
         if (c == -1)
             break;
         switch (c)
@@ -80,6 +82,9 @@ int options::parse(int argc, char** argv)
         case 'f':
             process.ignore_fcs = true;
             break;
+        case 'p':
+            read.promiscuous_mode = false;
+            break;
         case '?':
         case 'h':
             return 0;
@@ -98,17 +103,18 @@ int options::parse(int argc, char** argv)
 std::string options::usage_str()
 {
     std::ostringstream os;
-    os << "  --read <arg>    pcap file input, or exanic interface name\n"
-       << "  --write <arg>   file for output, - for std out, or ending in .pcap\n"
-       << "  --count <arg>   number of records to read, 0 for all\n"
-       << "  --date <arg>    date-time format to use for output\n"
-       << "  --all           write all packets, including keyframes\n"
-       << "  --offset <arg>  hw timestamp offset from the end of packet:\n"
-       << "                  4 if the timestamp mode is FCS,\n"
-       << "                  8 if the timestamp mode is append\n"
-       << "  --ignore-fcs    use this to skip FCS checks\n"
-       << "  --verbose, -v   specify more often to be more verbose\n"
-       << "  --help,    -h   show this help and exit";
+    os << "  --read <arg>      pcap file input, or exanic interface name\n"
+       << "  --write <arg>     file for output, - for std out, or ending in .pcap\n"
+       << "  --count <arg>     number of records to read, 0 for all\n"
+       << "  --date <arg>      date-time format to use for output\n"
+       << "  --all             write all packets, including keyframes\n"
+       << "  --offset <arg>    hw timestamp offset from the end of packet:\n"
+       << "                    4 if the timestamp mode is FCS,\n"
+       << "                    8 if the timestamp mode is append\n"
+       << "  --ignore-fcs      use this to skip FCS checks\n"
+       << "  --no-promisc, -p  do not attempt to put interface in promiscuous mode\n"
+       << "  --verbose,    -v  specify more often to be more verbose\n"
+       << "  --help,       -h  show this help and exit";
     return os.str();
 }
 

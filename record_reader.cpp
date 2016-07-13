@@ -6,10 +6,11 @@
 #include <exanic/exanic.h>
 #include <exanic/config.h>
 #include <exanic/fifo_rx.h>
-#include <exanic/fifo_if.h>
+#include <exanic/port.h>
 #include <exanic/time.h>
 #include <string.h>
-#include <sys/types.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -86,19 +87,24 @@ struct pcap_record_reader : public record_reader
 struct exanic_reader : public record_reader
 {
     exanic_t* exa;
+    int devport;
     exanic_rx_t* rx;
+    bool set_promiscuous;
+    int verbose;
 
     exanic_reader(const exanic_reader&) = delete;
     void operator=(const exanic_reader&) = delete;
     
-    exanic_reader(const std::string& interface)
+    exanic_reader(const read_options& opt)
     : exa(nullptr)
+    , devport(0)
     , rx(nullptr)
+    , set_promiscuous(false)
+    , verbose(opt.verbose)
     {
         char device[24];
-        int devport = 0;
-        if (exanic_find_port_by_interface_name(interface.c_str(), device, sizeof(device), &devport)
-            && parse_device_port(interface, device, sizeof(device), devport))
+        if (exanic_find_port_by_interface_name(opt.source.c_str(), device, sizeof(device), &devport)
+            && parse_device_port(opt.source, device, sizeof(device), devport))
         {
             throw std::invalid_argument(std::string("could not find interface"));
         }
@@ -114,6 +120,10 @@ struct exanic_reader : public record_reader
             exa = nullptr;
             throw std::invalid_argument(std::string("could not acquire rx buffer"));
         }
+
+        set_promiscuous = (opt.promiscuous_mode && !exanic_get_promiscuous_mode(exa, devport));
+        if (set_promiscuous)
+            set_promiscuous_mode(true);
     }
     
     virtual ~exanic_reader()
@@ -121,9 +131,40 @@ struct exanic_reader : public record_reader
         if (rx)
             exanic_release_rx_buffer(rx);
         if (exa)
+        {
+            if (set_promiscuous)
+                set_promiscuous_mode(false);
             exanic_release_handle(exa);
+        }
     }
-    
+
+    void set_promiscuous_mode(bool enable)
+    {
+        struct ifreq ifr;
+        memset(&ifr, 0, sizeof(ifr));
+        if (exanic_get_interface_name(exa, devport, ifr.ifr_name, sizeof(ifr.ifr_name)) == -1)
+            return;
+
+        int fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (ioctl(fd, SIOCGIFFLAGS, &ifr) != -1)
+        {
+            if (enable)
+                ifr.ifr_flags |= IFF_PROMISC;
+            else
+                ifr.ifr_flags &= ~IFF_PROMISC;
+
+            if (ioctl(fd, SIOCSIFFLAGS, &ifr) == -1)
+            {
+                // dont try again
+                set_promiscuous = false;
+                if (verbose && enable)
+                    std::cerr << "could not change to promiscuous mode\n";
+            }
+        }
+
+        close(fd);
+    }
+
     std::string type() const override
     {
         return "exanic";
@@ -265,7 +306,7 @@ std::unique_ptr<record_reader> record_reader::pcap(const read_options& opt)
 
 std::unique_ptr<record_reader> record_reader::exanic(const read_options& opt)
 {
-    return std::unique_ptr<record_reader>(new exanic_reader(opt.source));
+    return std::unique_ptr<record_reader>(new exanic_reader(opt));
 }
 
 std::unique_ptr<record_reader> record_reader::make(const read_options& opt) noexcept

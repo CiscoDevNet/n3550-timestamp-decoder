@@ -8,6 +8,7 @@ struct read_options
 {
     int verbose = 0;
     std::string source = "";
+    bool promiscuous_mode = true;
 };
 
 struct process_options
