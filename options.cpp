@@ -13,7 +13,7 @@ std::string options::to_str() const
        << " write:'" << write.dest << "'"
        << " date:'" << write.text_date_format << "'"
        << " count:" << count
-       << " all:" << write.write_keyframes
+       << " all:" << write.write_all
        << " offset:" << process.time_offset_end
        << " fcs:" << ((process.ignore_fcs || !process.fix_fcs)? "ignore" : "check")
        << " }";
@@ -32,12 +32,14 @@ int options::parse(int argc, char** argv)
         {"date",       required_argument, 0, 'd'},
         {"count",      required_argument, 0, 'c'},
         {"offset",     required_argument, 0, 'o'},
+        {"filter",     no_argument,       0, 'F'},
         {"ignore-fcs", no_argument,       0, 'f'},
         {"no-promisc", no_argument,       0, 'p'},
         {0, 0,                            0, 0}
     };
 
     int n = 0;
+    bool F = false;
     while (1)
     {
         int index = 0;
@@ -69,6 +71,7 @@ int options::parse(int argc, char** argv)
             count = std::atoi(optarg);
             break;
         case 'a':
+            write.write_all = true;
             write.write_keyframes = true;
             break;
         case 'o':
@@ -82,6 +85,9 @@ int options::parse(int argc, char** argv)
         case 'f':
             process.ignore_fcs = true;
             break;
+        case 'F':
+            F = true;
+            break;
         case 'p':
             read.promiscuous_mode = false;
             break;
@@ -92,7 +98,22 @@ int options::parse(int argc, char** argv)
             return -1;
         }
     }
-    if (optind < argc)
+    if (F)
+    {
+        if (optind == argc)
+        {
+            std::cerr << "expected filter expression" << std::endl;
+            return -1;
+        }
+        std::string ff;
+        for (int i = optind; i < argc ; ++i)
+        {
+            ff += argv[i];
+            ff += " ";
+        }
+        process.filter = ff;
+    }
+    else if (optind < argc)
     {
         std::cerr << argv[0] << ": unhandled arg '" << argv[optind] << "'" << std::endl;
         return -1;
@@ -104,14 +125,15 @@ std::string options::usage_str()
 {
     std::ostringstream os;
     os << "  --read <arg>      pcap file input, or exanic interface name\n"
-       << "  --write <arg>     file for output, - for std out, or ending in .pcap\n"
+       << "  --write <arg>     write frames pcap format, - for std out\n"
        << "  --count <arg>     number of records to read, 0 for all\n"
        << "  --date <arg>      date-time format to use for output\n"
-       << "  --all             write all packets, including keyframes\n"
+       << "  --all             write all packets, including keyframes and frames with no timestamp\n"
        << "  --offset <arg>    hw timestamp offset from the end of packet:\n"
        << "                    4 if the timestamp mode is FCS,\n"
        << "                    8 if the timestamp mode is append\n"
        << "  --ignore-fcs      use this to skip FCS checks\n"
+       << "  --filter <args>   apply pcap filter to frame\n"
        << "  --no-promisc, -p  do not attempt to put interface in promiscuous mode\n"
        << "  --verbose,    -v  specify more often to be more verbose\n"
        << "  --help,       -h  show this help and exit";

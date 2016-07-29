@@ -143,6 +143,11 @@ int main(int argc, char** argv)
                 ++count_errors;
                 break;
             }
+            else if (timed.status == record_time_t::record_time_missing && opt.write.write_all)
+            {
+                // lets this fall through, using clock time
+                timed.hw_nanos = record.clock_nanos;
+            }
             else if (timed.status > 0)
             {
                 if (opt.verbose > 1)
@@ -160,27 +165,28 @@ int main(int argc, char** argv)
             else
             {
                 assert(timed.status == record_time_t::ok);
-                if (timed.is_keyframe)
-                    ++count_key_frames;
-                const int err = writer->write(timed, record, buffer);
-                if (err < 0)
-                {
-                    if (opt.verbose)
-                    {
-                        std::cerr << "unrecoverable write error (" << err << ")"
-                                  << std::endl;
-                    }
-                    ++count_errors;
-                    break;
-                }
-                else if (!err)
-                {
-                    ++count_packet_out;
-                    if (count_packet_out == opt.count)
-                        break;
-                }
-                // else its a key frame that is intentionally skipped
             }
+
+            if (timed.is_keyframe)
+                ++count_key_frames;
+            const int err = writer->write(timed, record, buffer);
+            if (err < 0)
+            {
+                if (opt.verbose)
+                {
+                    std::cerr << "unrecoverable write error (" << err << ")"
+                              << std::endl;
+                }
+                ++count_errors;
+                break;
+            }
+            else if (!err)
+            {
+                ++count_packet_out;
+                if (count_packet_out == opt.count)
+                    break;
+            }
+            // else its a key frame that is intentionally skipped
         }
         else if (record.status == read_record_t::error)
         {

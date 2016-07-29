@@ -1,4 +1,5 @@
 #include "record_process.hpp"
+#include "record_filter.hpp"
 #include "crc32.hpp"
 #include <netinet/ether.h>
 #include <netinet/ip.h>
@@ -8,7 +9,6 @@
 
 using eth_header_t = struct ether_header;
 using ip_header_t = struct ip;
-using arp_header_t = struct arphdr;
 
 struct exa_keyframe
 {
@@ -87,7 +87,11 @@ const char* record_time_t::status_str() const
 record_process::record_process(const process_options& opt)
 : options_(opt)
 , keyframe_()
-{}
+, filter_()
+{
+    if (!opt.filter.empty())
+        filter_ = std::make_shared<frame_filter>(opt.filter, DLT_EN10MB, 0xffff);
+}
 
 uint64_t record_process::ticks_to_nanos(int64_t delta_ticks) const
 {
@@ -193,6 +197,9 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     const uint32_t* hw_time = reinterpret_cast<const uint32_t*>(end - options_.time_offset_end);
 
     // fallen through, so not a (recognised) keyframe
+    if (filter_ && !filter_->allows(record, buffer))
+        return record_time_t(record_time_t::filtered);
+
     record_time_t result(record_time_t::ok);
 
     // find correct FCS, unless ignoring FCS's

@@ -2,7 +2,7 @@ CXX	      := g++
 CXXFLAGS  := -p -g -std=c++11  -Weffc++
 OBJDIR	  := build
 LDFLAGS   := -fPIC
-LDLIBS    := -lexanic
+LDLIBS    := -lexanic -lpcap
 
 FILES_CPP := $(wildcard *.cpp)
 FILES_OBJ := $(FILES_CPP:%.cpp=$(OBJDIR)/%.o)

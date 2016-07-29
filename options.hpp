@@ -18,12 +18,14 @@ struct process_options
     bool use_clock_times = false;
     int time_offset_end = 4;
     bool ignore_fcs = false;
+    std::string filter = "";
 };
 
 struct write_options
 {
     int verbose = 0;
-    std::string dest = "-";
+    std::string dest = "";
+    bool write_all = false;
     bool write_keyframes = false;
     bool write_micros = false;
     bool write_clock_times = true;

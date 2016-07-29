@@ -18,8 +18,12 @@ struct pcap_writer : public record_writer
 
     pcap_writer(const write_options& opt)
     : options(opt)
-    , os(opt.dest, std::ofstream::trunc)
+    , os()
     {
+        if (opt.dest == "-")
+            os.open("/dev/stdout");
+        else
+            os.open(opt.dest, std::ofstream::trunc);
         if (!os.good())
             throw std::invalid_argument(std::string("could not create pcap file"));
         pcap_file_header_t header;
@@ -43,19 +47,21 @@ struct pcap_writer : public record_writer
             return -1;
         if (time.is_keyframe && !options.write_keyframes)
             return +1;
+        if (!time.hw_nanos && !options.write_all)
+            return +1;
 
-        if (time.hw_nanos)
-        {
-            pcap_header_t header;
-            header.tv_secs = time.hw_nanos / nanos_per_sec;
-            header.tv_frac = time.hw_nanos % nanos_per_sec;
-            if (options.write_micros)
-                header.tv_frac /= 1000;
-            header.len_capture = record.len_capture;
-            header.len_orig = record.len_orig;
-            os.write((const char*)&header, sizeof(header));
-            os.write(buffer, header.len_capture);
-        }
+        auto nanos = time.hw_nanos? time.hw_nanos : record.clock_nanos;
+
+        pcap_header_t header;
+        header.tv_secs = nanos / nanos_per_sec;
+        header.tv_frac = nanos % nanos_per_sec;
+        if (options.write_micros)
+            header.tv_frac /= 1000;
+        header.len_capture = record.len_capture;
+        header.len_orig = record.len_orig;
+        os.write((const char*)&header, sizeof(header));
+        os.write(buffer, header.len_capture);
+
         return os.good()? 0 : -1;
     }
 };
@@ -69,7 +75,7 @@ struct text_writer : public record_writer
     : options(opt)
     , os()
     {
-        if (options.dest == "-")
+        if (options.dest == "-" || options.dest.empty())
             os.open("/dev/stdout");
         else
             os.open(options.dest);
@@ -139,8 +145,11 @@ struct text_writer : public record_writer
             return -1;
         if (time.is_keyframe && !options.write_keyframes)
             return +1;
+        if (!time.hw_nanos && !options.write_all)
+            return +1;
 
-        write_time(time.hw_nanos);
+        if (time.hw_nanos)
+            write_time(time.hw_nanos);
         if (options.write_clock_times)
         {
             os << "  (";
@@ -150,8 +159,8 @@ struct text_writer : public record_writer
                 // take care about uint64_t's maths
                 int64_t diff = time.hw_nanos - record.clock_nanos;
                 os << " " << std::setprecision(9) << std::fixed << std::showpos << (diff/1e9);
-                os << ")";
             }
+            os << ")";
         }
         os << " " << std::setw(5) << record.len_capture << " bytes" << std::endl;
         write_packet(buffer, record.len_capture);
@@ -174,15 +183,12 @@ std::unique_ptr<record_writer> record_writer::make(const write_options& opt) noe
     try
     {
         /*
-         * Choose pcap if the arg ends with standard pcap extention.
+         * If write was specifiec, write pcap format
          */
-        const size_t dst_len = opt.dest.size();
-        const bool is_pcap = (dst_len>5 && opt.dest.substr(dst_len-5) == ".pcap");
-
-        if (is_pcap)
-            return record_writer::pcap(opt);
-        else
+        if (opt.dest.empty())
             return record_writer::text(opt);
+        else
+            return record_writer::pcap(opt);
     }
     catch (std::exception& e)
     {

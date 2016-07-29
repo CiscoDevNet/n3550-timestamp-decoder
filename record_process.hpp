@@ -2,6 +2,7 @@
 
 #include "record_reader.hpp"
 #include "options.hpp"
+#include <memory>
 
 struct record_time_t
 {
@@ -18,6 +19,7 @@ struct record_time_t
         record_time_zero = 4,
         record_time_missing = 5,
         missing_recent_keyframe = 6,
+        filtered = 7,
     };
 
     int status;
@@ -34,6 +36,8 @@ struct record_time_t
 
     const char* status_str() const;
 };
+
+struct frame_filter;
 
 struct record_process
 {
@@ -57,6 +61,7 @@ private:
 
     const process_options options_;
     keyframe_data keyframe_;
+    std::shared_ptr<frame_filter> filter_;
 
 public:
     record_process(const process_options& opt);
