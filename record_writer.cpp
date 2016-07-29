@@ -149,10 +149,13 @@ struct text_writer : public record_writer
             return +1;
 
         if (time.hw_nanos)
+        {
             write_time(time.hw_nanos);
+            os << "  ";
+        }
         if (options.write_clock_times)
         {
-            os << "  (";
+            os << "(";
             write_time(record.clock_nanos);
             if (time.hw_nanos && record.clock_nanos)
             {

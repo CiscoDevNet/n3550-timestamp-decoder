@@ -146,7 +146,6 @@ int main(int argc, char** argv)
             else if (timed.status == record_time_t::record_time_missing && opt.write.write_all)
             {
                 // lets this fall through, using clock time
-                timed.hw_nanos = record.clock_nanos;
             }
             else if (timed.status > 0)
             {
