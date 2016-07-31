@@ -20,6 +20,7 @@ keyframe, which maps the counter value to nanosecond UTC time.
 
  * g++ 4.7 or later
  * libpcap-dev
+ * exanic-devel
 
 ## Building
 
