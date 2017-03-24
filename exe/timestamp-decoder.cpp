@@ -35,7 +35,13 @@ enum struct return_value : int
 
 static void usage(char* exe)
 {
-    std::cout << "Usage: " << exe << "\n"
+    std::cout << "Usage: " << exe << "\nBuilt "
+#ifdef WITH_EXANIC
+                 "with"
+#else
+                 "without"
+#endif
+                 " support for direct ExaNIC capture\n"
               << options::usage_str()
               << std::endl;
 }

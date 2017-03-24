@@ -3,11 +3,13 @@
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
+#ifdef WITH_EXANIC
 #include <exanic/exanic.h>
 #include <exanic/config.h>
 #include <exanic/fifo_rx.h>
 #include <exanic/port.h>
 #include <exanic/time.h>
+#endif
 #include <string.h>
 #include <net/if.h>
 #include <sys/ioctl.h>
@@ -84,6 +86,12 @@ struct pcap_record_reader : public record_reader
     }
 };
 
+std::unique_ptr<record_reader> record_reader::pcap(const read_options& opt)
+{
+    return std::unique_ptr<record_reader>(new pcap_record_reader(opt.source));
+}
+
+#ifdef WITH_EXANIC
 struct exanic_reader : public record_reader
 {
     exanic_t* exa;
@@ -299,20 +307,17 @@ struct exanic_reader : public record_reader
     }
 };
 
-std::unique_ptr<record_reader> record_reader::pcap(const read_options& opt)
-{
-    return std::unique_ptr<record_reader>(new pcap_record_reader(opt.source));
-}
-
 std::unique_ptr<record_reader> record_reader::exanic(const read_options& opt)
 {
     return std::unique_ptr<record_reader>(new exanic_reader(opt));
 }
+#endif
 
 std::unique_ptr<record_reader> record_reader::make(const read_options& opt) noexcept
 {
     try
     {
+#ifdef WITH_EXANIC
         /*
          * Choose file reader if we can find the named file, or
          * if the arg ends with standard pcap extention.
@@ -325,6 +330,9 @@ std::unique_ptr<record_reader> record_reader::make(const read_options& opt) noex
             return record_reader::pcap(opt);
         else
             return record_reader::exanic(opt);
+#else
+        return record_reader::pcap(opt);
+#endif
     }
     catch (std::exception& e)
     {
