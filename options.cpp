@@ -3,6 +3,16 @@
 #include <iostream>
 #include <getopt.h>
 
+const char* process_options::timestamp_format_str() const
+{
+    switch (timestamp_format)
+    {
+    case timestamp_format_32bit:    return "32bit";
+    case timestamp_format_trailer:  return "trailer";
+    default:                        return "unknown";
+    }
+}
+
 std::string options::to_str() const
 {
     std::ostringstream os;
@@ -14,6 +24,7 @@ std::string options::to_str() const
        << " date:'" << write.text_date_format << "'"
        << " count:" << count
        << " all:" << write.write_keyframes
+       << " format:" << process.timestamp_format_str()
        << " offset:" << process.time_offset_end
        << " fcs:" << ((process.ignore_fcs || !process.fix_fcs)? "ignore" : "check")
        << " }";
@@ -32,6 +43,7 @@ int options::parse(int argc, char** argv)
         {"date",       required_argument, 0, 'd'},
         {"count",      required_argument, 0, 'c'},
         {"offset",     required_argument, 0, 'o'},
+        {"trailer",    no_argument,       0, 't'},
         {"ignore-fcs", no_argument,       0, 'f'},
         {"no-promisc", no_argument,       0, 'p'},
         {0, 0,                            0, 0}
@@ -73,11 +85,9 @@ int options::parse(int argc, char** argv)
             break;
         case 'o':
             process.time_offset_end = std::atoi(optarg);
-            if (process.time_offset_end != 4 && process.time_offset_end != 8)
-            {
-                std::cerr << "expected offset to be 4 or 8" << std::endl;
-                return -1;
-            }
+            break;
+        case 't':
+            process.timestamp_format = process_options::timestamp_format_trailer;
             break;
         case 'f':
             process.ignore_fcs = true;
@@ -97,6 +107,32 @@ int options::parse(int argc, char** argv)
         std::cerr << argv[0] << ": unhandled arg '" << argv[optind] << "'" << std::endl;
         return -1;
     }
+    switch (process.timestamp_format)
+    {
+    case process_options::timestamp_format_trailer:
+        // 16 byte exablaze timestamp trailer appended to the packet
+        if (process.time_offset_end == 0)
+            process.time_offset_end = 16;
+        if (process.time_offset_end != 16 && process.time_offset_end != 20)
+        {
+            std::cerr << "expected offset to be 16 or 20" << std::endl;
+            return -1;
+        }
+        break;
+    case process_options::timestamp_format_32bit:
+        // 32 bit timestamps replacing the fcs or appended to the packet
+        if (process.time_offset_end == 0)
+            process.time_offset_end = 4;
+        if (process.time_offset_end != 4 && process.time_offset_end != 8)
+        {
+            std::cerr << "expected offset to be 4 or 8" << std::endl;
+            return -1;
+        }
+        break;
+    default:
+        std::cerr << "timestamp format not specified" << std::endl;
+        return -1;
+    }
     return n;
 }
 
@@ -108,6 +144,7 @@ std::string options::usage_str()
        << "  --count <arg>     number of records to read, 0 for all\n"
        << "  --date <arg>      date-time format to use for output\n"
        << "  --all             write all packets, including keyframes\n"
+       << "  --trailer         parse Exablaze timestamp trailers\n"
        << "  --offset <arg>    hw timestamp offset from the end of packet:\n"
        << "                    4 if the timestamp mode is FCS,\n"
        << "                    8 if the timestamp mode is append\n"

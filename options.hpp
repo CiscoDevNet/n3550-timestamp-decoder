@@ -13,11 +13,20 @@ struct read_options
 
 struct process_options
 {
+    enum
+    {
+        timestamp_format_32bit = 0,
+        timestamp_format_trailer = 1,
+    };
+
     int verbose = 0;
     bool fix_fcs = true;
     bool use_clock_times = false;
-    int time_offset_end = 4;
+    int time_offset_end = 0;
     bool ignore_fcs = false;
+    int timestamp_format = timestamp_format_32bit;
+
+    const char* timestamp_format_str() const;
 };
 
 struct write_options

@@ -3,8 +3,10 @@
 #include <netinet/ether.h>
 #include <netinet/ip.h>
 #include <pcap.h>
+#include <math.h>
 #include <limits>
 #include <iostream>
+#include <cassert>
 
 using eth_header_t = struct ether_header;
 using ip_header_t = struct ip;
@@ -51,6 +53,17 @@ struct compat_keyframe
     uint16_t device_id;
     uint16_t egress_port;
     uint8_t fcs_type;
+    uint8_t __reserved;
+
+} __attribute__((packed));
+
+struct exablaze_timestamp_trailer
+{
+    uint32_t original_fcs;
+    uint8_t device_id;
+    uint8_t port;
+    uint32_t seconds_since_epoch;
+    uint8_t frac_seconds[5];
     uint8_t __reserved;
 
 } __attribute__((packed));
@@ -136,7 +149,7 @@ record_time_t record_process::process_compat_keyframe(const read_record_t& recor
     return process_keyframe(data);
 }
 
-record_time_t record_process::process(const read_record_t& record, char* buffer)
+record_time_t record_process::process_32bit_timestamps(const read_record_t& record, char* buffer)
 {
     // only deal with ethernet frames
     if (record.linktype != DLT_EN10MB)
@@ -263,3 +276,50 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     return result;
 }
 
+record_time_t record_process::process_trailer_timestamps(const read_record_t& record, char* buffer)
+{
+    // only deal with ethernet frames
+    if (record.linktype != DLT_EN10MB)
+        return record_time_t(record_time_t::unsupported_linktype);
+
+    // too short to be relevant
+    if (record.len_capture < options_.time_offset_end)
+        return record_time_t(record_time_t::record_too_short);
+
+    // to process hardware time or fcs, we need whole packet
+    if (record.len_capture != record.len_orig)
+        return record_time_t(record_time_t::record_truncated);
+
+    char* ptr = buffer;
+    char* end = buffer + record.len_capture;
+
+    assert(options_.time_offset_end >= sizeof(exablaze_timestamp_trailer));
+
+    const exablaze_timestamp_trailer* trailer =
+        reinterpret_cast<const exablaze_timestamp_trailer*>(end - options_.time_offset_end);
+
+    uint32_t seconds_since_epoch = ntohl(trailer->seconds_since_epoch);
+    double frac_seconds = ldexp((uint64_t(trailer->frac_seconds[0]) << 32) |
+        (uint64_t(trailer->frac_seconds[1]) << 24) | (uint64_t(trailer->frac_seconds[2]) << 16) |
+        (uint64_t(trailer->frac_seconds[3]) << 8) | uint64_t(trailer->frac_seconds[4]), -40);
+
+    record_time_t result(record_time_t::ok);
+    result.hw_nanos = seconds_since_epoch * nanos_per_sec + uint64_t(frac_seconds * nanos_per_sec);
+    result.device_id = trailer->device_id;
+    result.port = trailer->port;
+
+    return result;
+}
+
+record_time_t record_process::process(const read_record_t& record, char* buffer)
+{
+    switch (options_.timestamp_format)
+    {
+    case process_options::timestamp_format_32bit:
+        return process_32bit_timestamps(record, buffer);
+    case process_options::timestamp_format_trailer:
+        return process_trailer_timestamps(record, buffer);
+    default:
+        return record_time_t(record_time_t::unspecified);
+    }
+}

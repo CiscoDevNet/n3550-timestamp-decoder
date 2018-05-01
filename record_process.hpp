@@ -24,12 +24,16 @@ struct record_time_t
     bool is_keyframe;
     bool fixed_fcs;
     uint64_t hw_nanos;
+    int device_id;
+    int port;
 
     record_time_t(int s = record_time_t::unspecified)
     : status(s)
     , is_keyframe(false)
     , fixed_fcs(false)
     , hw_nanos(0)
+    , device_id(-1)
+    , port(-1)
     {}
 
     const char* status_str() const;
@@ -69,5 +73,7 @@ private:
     record_time_t process_exa_keyframe(const read_record_t& record, const char* keyframe, size_t len);
     record_time_t process_compat_keyframe(const read_record_t& record, const char* keyframe, size_t len);
 
+    record_time_t process_32bit_timestamps(const read_record_t& record, char* buffer);
+    record_time_t process_trailer_timestamps(const read_record_t& record, char* buffer);
 };
 
