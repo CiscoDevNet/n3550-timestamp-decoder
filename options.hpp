@@ -2,8 +2,6 @@
 
 #include <string>
 
-static const uint64_t nanos_per_sec = 1000000000LL;
-
 struct read_options
 {
     int verbose = 0;
@@ -35,6 +33,7 @@ struct write_options
     std::string dest = "-";
     bool write_keyframes = false;
     bool write_micros = false;
+    bool write_picos = false;
     bool write_clock_times = true;
     std::string text_date_format = "%Y/%m/%d-%H:%M:%S";
 };

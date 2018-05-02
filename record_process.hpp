@@ -2,6 +2,7 @@
 
 #include "record_reader.hpp"
 #include "options.hpp"
+#include "pstime.hpp"
 
 struct record_time_t
 {
@@ -23,7 +24,7 @@ struct record_time_t
     int status;
     bool is_keyframe;
     bool fixed_fcs;
-    uint64_t hw_nanos;
+    pstime_t hw_time;
     int device_id;
     int port;
 
@@ -31,7 +32,7 @@ struct record_time_t
     : status(s)
     , is_keyframe(false)
     , fixed_fcs(false)
-    , hw_nanos(0)
+    , hw_time(0, 0)
     , device_id(-1)
     , port(-1)
     {}
@@ -45,17 +46,17 @@ private:
     struct keyframe_data
     {
         uint64_t utc_nanos;
-        uint64_t clock_nanos;
         uint64_t counter;
         uint64_t freq;
         bool arista_compat;
+        pstime_t clock_time;
 
         keyframe_data()
         : utc_nanos(0)
-        , clock_nanos(0)
         , counter(0)
         , freq(350000000) // 350MHz standard
         , arista_compat(false)
+        , clock_time(0, 0)
         {}
     };
 
@@ -68,7 +69,6 @@ public:
     record_time_t process(const read_record_t& record, char* buffer);
 
 private:
-    uint64_t ticks_to_nanos(int64_t delta_ticks) const;
     record_time_t process_keyframe(const keyframe_data& data);
     record_time_t process_exa_keyframe(const read_record_t& record, const char* keyframe, size_t len);
     record_time_t process_compat_keyframe(const read_record_t& record, const char* keyframe, size_t len);

@@ -102,21 +102,12 @@ record_process::record_process(const process_options& opt)
 , keyframe_()
 {}
 
-uint64_t record_process::ticks_to_nanos(int64_t delta_ticks) const
-{
-    if (delta_ticks > std::numeric_limits<int64_t>::max()/nanos_per_sec)
-        return 0;
-    uint64_t nanos = delta_ticks * nanos_per_sec;
-    nanos /= keyframe_.freq;
-    return nanos;
-}
-
 record_time_t record_process::process_keyframe(const keyframe_data& data)
 {
     keyframe_ = data;
     record_time_t result(record_time_t::ok);
     result.is_keyframe = true;
-    result.hw_nanos = data.utc_nanos;
+    result.hw_time = ns_to_pstime(data.utc_nanos);
     return result;
 }
 
@@ -129,7 +120,7 @@ record_time_t record_process::process_exa_keyframe(const read_record_t& record, 
 
     keyframe_data data;
     data.utc_nanos = ntohll(kf->utc);
-    data.clock_nanos = record.clock_nanos;
+    data.clock_time = record.clock_time;
     data.counter = ntohll(kf->counter);
     data.freq = ntohll(kf->freq);
     return process_keyframe(data);
@@ -143,7 +134,7 @@ record_time_t record_process::process_compat_keyframe(const read_record_t& recor
 
     keyframe_data data;
     data.utc_nanos = ntohll(kf->utc);
-    data.clock_nanos = record.clock_nanos;
+    data.clock_time = record.clock_time;
     data.counter = ntohll(kf->asic_time);
     data.arista_compat = true;
     return process_keyframe(data);
@@ -214,7 +205,7 @@ record_time_t record_process::process_32bit_timestamps(const read_record_t& reco
 
     if (options_.use_clock_times)
     {
-        result.hw_nanos = record.clock_nanos;
+        result.hw_time = record.clock_time;
     }
     else
     {
@@ -228,9 +219,9 @@ record_time_t record_process::process_32bit_timestamps(const read_record_t& reco
         }
 
         // keyframe stored in clock time, not hardware time
-        int64_t nanos_last_keyframe = record.clock_nanos - keyframe_.clock_nanos;
+        pstime_t time_since_last_keyframe = record.clock_time - keyframe_.clock_time;
         // keyframes published every second, allow for some missing
-        if (nanos_last_keyframe > static_cast<int64_t>(5*nanos_per_sec))
+        if (time_since_last_keyframe > pstime_t(5, 0))
         {
             // missed too many keyframes
             result.status = record_time_t::missing_recent_keyframe;
@@ -261,8 +252,8 @@ record_time_t record_process::process_32bit_timestamps(const read_record_t& reco
                 if (ticks < 0)
                     ticks += 0x100000000;
             }
-            result.hw_nanos = ticks_to_nanos(ticks);
-            result.hw_nanos += keyframe_.utc_nanos;
+            int64_t delta_ns = ticks * 1000000000 / keyframe_.freq;
+            result.hw_time = ns_to_pstime(keyframe_.utc_nanos + delta_ns);
         }
     }
 
@@ -304,7 +295,7 @@ record_time_t record_process::process_trailer_timestamps(const read_record_t& re
         (uint64_t(trailer->frac_seconds[3]) << 8) | uint64_t(trailer->frac_seconds[4]), -40);
 
     record_time_t result(record_time_t::ok);
-    result.hw_nanos = seconds_since_epoch * nanos_per_sec + uint64_t(frac_seconds * nanos_per_sec);
+    result.hw_time = pstime_t(seconds_since_epoch, frac_seconds * 1000000000000ULL);
     result.device_id = trailer->device_id;
     result.port = trailer->port;
 

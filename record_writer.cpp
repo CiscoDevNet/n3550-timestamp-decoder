@@ -20,6 +20,8 @@ struct pcap_writer : public record_writer
     : options(opt)
     , os(opt.dest, std::ofstream::trunc)
     {
+        if (options.write_picos)
+            throw std::invalid_argument(std::string("pcap does not support picosecond resolution"));
         if (!os.good())
             throw std::invalid_argument(std::string("could not create pcap file"));
         pcap_file_header_t header;
@@ -44,11 +46,11 @@ struct pcap_writer : public record_writer
         if (time.is_keyframe && !options.write_keyframes)
             return +1;
 
-        if (time.hw_nanos)
+        if (time.hw_time)
         {
             pcap_header_t header;
-            header.tv_secs = time.hw_nanos / nanos_per_sec;
-            header.tv_frac = time.hw_nanos % nanos_per_sec;
+            header.tv_secs = time.hw_time.sec;
+            header.tv_frac = time.hw_time.psec / 1000;
             if (options.write_micros)
                 header.tv_frac /= 1000;
             header.len_capture = record.len_capture;
@@ -79,9 +81,9 @@ struct text_writer : public record_writer
 
     std::string type() const override { return "text"; }
 
-    void write_time(uint64_t nanos)
+    void write_time(pstime_t time)
     {
-        std::time_t ts = nanos / nanos_per_sec;
+        std::time_t ts = time.sec;
         std::tm tm = *std::gmtime(&ts);
         char buffer[128];
         std::size_t written = strftime(buffer, 128, options.text_date_format.c_str(), &tm);
@@ -89,11 +91,12 @@ struct text_writer : public record_writer
             throw std::invalid_argument(std::string("bad time format string"));
         os << buffer << '.';
         os << std::setfill('0');
-        nanos %= nanos_per_sec;
         if (options.write_micros)
-            os << std::setw(6) << (nanos/1000);
+            os << std::setw(6) << (time.psec/1000000);
+        else if (options.write_picos)
+            os << std::setw(12) << time.psec;
         else
-            os << std::setw(9) << nanos;
+            os << std::setw(9) << (time.psec/1000);
         os << std::setfill(' ');
     }
 
@@ -140,18 +143,17 @@ struct text_writer : public record_writer
         if (time.is_keyframe && !options.write_keyframes)
             return +1;
 
-        write_time(time.hw_nanos);
+        write_time(time.hw_time);
         if (options.write_clock_times)
         {
             os << "  (";
-            write_time(record.clock_nanos);
-            if (time.hw_nanos && record.clock_nanos)
+            write_time(record.clock_time);
+            if (time.hw_time && record.clock_time)
             {
-                // take care about uint64_t's maths
-                int64_t diff = time.hw_nanos - record.clock_nanos;
-                os << " " << std::setprecision(9) << std::fixed << std::showpos << (diff/1e9);
-                os << ")";
+                pstime_t diff = time.hw_time - record.clock_time;
+                os << " " << std::setprecision(9) << std::fixed << std::showpos << double(diff);
             }
+            os << ")";
         }
         os << " " << std::setw(5) << record.len_capture << " bytes" << std::endl;
         write_packet(buffer, record.len_capture);
