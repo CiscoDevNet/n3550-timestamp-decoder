@@ -151,12 +151,27 @@ struct text_writer : public record_writer
             if (time.hw_time && record.clock_time)
             {
                 pstime_t diff = time.hw_time - record.clock_time;
-                os << " " << std::setprecision(9) << std::fixed << std::showpos << double(diff);
+                os << " " << std::setprecision(9) << std::fixed << std::showpos << double(diff) << std::noshowpos;
             }
             os << ")";
         }
+        if (options.write_source_id)
+        {
+            os << "  (" << std::setfill('0');
+            if (time.device_id != -1)
+                os << std::setw(3) << time.device_id;
+            else
+                os << "???";
+            os << ":";
+            if (time.port != -1)
+                os << std::setw(3) << time.port;
+            else
+                os << "???";
+            os << ")" << std::setfill(' ');
+        }
         os << " " << std::setw(5) << record.len_capture << " bytes" << std::endl;
-        write_packet(buffer, record.len_capture);
+        if (options.write_packet)
+            write_packet(buffer, record.len_capture);
         return 0;
     }
 };

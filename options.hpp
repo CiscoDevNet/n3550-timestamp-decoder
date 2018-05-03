@@ -35,6 +35,8 @@ struct write_options
     bool write_micros = false;
     bool write_picos = false;
     bool write_clock_times = true;
+    bool write_packet = true;
+    bool write_source_id = false;
     std::string text_date_format = "%Y/%m/%d-%H:%M:%S";
 };
 
