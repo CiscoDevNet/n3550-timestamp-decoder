@@ -46,7 +46,6 @@ int options::parse(int argc, char** argv)
         {"trailer",    no_argument,       0, 't'},
         {"ignore-fcs", no_argument,       0, 'f'},
         {"no-promisc", no_argument,       0, 'p'},
-        {"pico",       no_argument,       0, 'P'},
         {"no-payload", no_argument,       0, 'n'},
         {"source",     no_argument,       0, 's'},
         {0, 0,                            0, 0}
@@ -97,9 +96,6 @@ int options::parse(int argc, char** argv)
             break;
         case 'p':
             read.promiscuous_mode = false;
-            break;
-        case 'P':
-            write.write_picos = true;
             break;
         case 'n':
             write.write_packet = false;

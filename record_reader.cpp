@@ -73,9 +73,9 @@ struct pcap_record_reader : public record_reader
         record.len_capture = header.len_capture;
         record.len_orig = header.len_orig;
         if (nanos)
-            record.clock_time = pstime_t(header.tv_secs, header.tv_frac * 1000UL);
+            record.clock_time = pstime_t(header.tv_secs, header.tv_frac * 1000UL, 9);
         else
-            record.clock_time = pstime_t(header.tv_secs, header.tv_frac * 1000000ULL);
+            record.clock_time = pstime_t(header.tv_secs, header.tv_frac * 1000000ULL, 6);
         
         size_t to_read = (record.len_capture < buffer_len) ? record.len_capture : buffer_len;
         is.read(buffer, to_read);

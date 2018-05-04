@@ -20,8 +20,6 @@ struct pcap_writer : public record_writer
     : options(opt)
     , os(opt.dest, std::ofstream::trunc)
     {
-        if (options.write_picos)
-            throw std::invalid_argument(std::string("pcap does not support picosecond resolution"));
         if (!os.good())
             throw std::invalid_argument(std::string("could not create pcap file"));
         pcap_file_header_t header;
@@ -90,14 +88,10 @@ struct text_writer : public record_writer
         if (!written)
             throw std::invalid_argument(std::string("bad time format string"));
         os << buffer << '.';
-        os << std::setfill('0');
-        if (options.write_micros)
-            os << std::setw(6) << (time.psec/1000000);
-        else if (options.write_picos)
-            os << std::setw(12) << time.psec;
-        else
-            os << std::setw(9) << (time.psec/1000);
-        os << std::setfill(' ');
+        uint64_t frac = time.psec;
+        for (unsigned i = 12; i > time.precision; --i)
+            frac /= 10;
+        os << std::setfill('0') << std::setw(time.precision) << frac << std::setfill(' ');
     }
 
     void write_packet(const char* buffer, size_t len)
@@ -151,7 +145,9 @@ struct text_writer : public record_writer
             if (time.hw_time && record.clock_time)
             {
                 pstime_t diff = time.hw_time - record.clock_time;
-                os << " " << std::setprecision(9) << std::fixed << std::showpos << double(diff) << std::noshowpos;
+                os << std::setprecision(diff.precision) << std::fixed << std::showpos;
+                os << " " << double(diff);
+                os << std::noshowpos;
             }
             os << ")";
         }

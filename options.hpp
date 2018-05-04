@@ -33,7 +33,6 @@ struct write_options
     std::string dest = "-";
     bool write_keyframes = false;
     bool write_micros = false;
-    bool write_picos = false;
     bool write_clock_times = true;
     bool write_packet = true;
     bool write_source_id = false;
