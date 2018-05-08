@@ -35,7 +35,8 @@ enum struct return_value : int
 
 static void usage(char* exe)
 {
-    std::cout << "Usage: " << exe << "\nBuilt "
+    std::cout << "Usage: " << exe << " [options]\n"
+                 "Built "
 #ifdef WITH_EXANIC
                  "with"
 #else
@@ -99,8 +100,6 @@ int main(int argc, char** argv)
         usage(argv[0]);
         return ret;
     }
-    if (opt.verbose > 1)
-        std::cout << "options: " << opt.to_str() << std::endl;
 
     signal(SIGHUP, signal_handler);
     signal(SIGINT, signal_handler);

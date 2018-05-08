@@ -29,6 +29,11 @@ struct pstime_t
         return sec < rhs.sec || (sec == rhs.sec && psec < rhs.psec);
     }
 
+    bool operator>(const pstime_t& rhs) const
+    {
+        return sec > rhs.sec || (sec == rhs.sec && psec > rhs.psec);
+    }
+
     int64_t ns() const { return (sec * 1000000000LL) + (psec / 1000); }
 };
 

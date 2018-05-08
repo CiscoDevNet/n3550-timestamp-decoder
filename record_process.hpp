@@ -19,6 +19,7 @@ struct record_time_t
         record_time_zero = 4,
         record_time_missing = 5,
         missing_recent_keyframe = 6,
+        unknown_format = 7,
     };
 
     int status;
@@ -62,6 +63,8 @@ private:
 
     const process_options options_;
     keyframe_data keyframe_;
+    int time_offset_end_;
+    int timestamp_format_;
 
 public:
     record_process(const process_options& opt);
@@ -69,6 +72,8 @@ public:
     record_time_t process(const read_record_t& record, char* buffer);
 
 private:
+    int64_t ticks_since_last_keyframe(const uint32_t* hw_time);
+
     record_time_t process_keyframe(const keyframe_data& data);
     record_time_t process_exa_keyframe(const read_record_t& record, const char* keyframe, size_t len);
     record_time_t process_compat_keyframe(const read_record_t& record, const char* keyframe, size_t len);

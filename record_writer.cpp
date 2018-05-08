@@ -151,19 +151,13 @@ struct text_writer : public record_writer
             }
             os << ")";
         }
-        if (options.write_source_id)
+        if (time.device_id != -1 && time.port != -1)
         {
-            os << "  (" << std::setfill('0');
-            if (time.device_id != -1)
-                os << std::setw(3) << time.device_id;
-            else
-                os << "???";
-            os << ":";
-            if (time.port != -1)
-                os << std::setw(3) << time.port;
-            else
-                os << "???";
-            os << ")" << std::setfill(' ');
+            os << "  (" << std::setfill('0')
+               << std::setw(3) << time.device_id
+               << ":"
+               << std::setw(3) << time.port
+               << ")" << std::setfill(' ');
         }
         os << " " << std::setw(5) << record.len_capture << " bytes" << std::endl;
         if (options.write_packet)

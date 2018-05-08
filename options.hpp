@@ -13,18 +13,15 @@ struct process_options
 {
     enum
     {
-        timestamp_format_32bit = 0,
-        timestamp_format_trailer = 1,
+        timestamp_format_auto = 0,
+        timestamp_format_32bit = 1,
+        timestamp_format_trailer = 2,
     };
 
     int verbose = 0;
     bool fix_fcs = true;
-    bool use_clock_times = false;
-    int time_offset_end = 0;
-    bool ignore_fcs = false;
-    int timestamp_format = timestamp_format_32bit;
-
-    const char* timestamp_format_str() const;
+    int time_offset_end = -1;
+    int timestamp_format = timestamp_format_auto;
 };
 
 struct write_options
@@ -35,7 +32,6 @@ struct write_options
     bool write_micros = false;
     bool write_clock_times = true;
     bool write_packet = true;
-    bool write_source_id = false;
     std::string text_date_format = "%Y/%m/%d-%H:%M:%S";
 };
 
@@ -47,7 +43,6 @@ struct options
     write_options write = write_options();
     uint32_t count = 0;
 
-    std::string to_str() const;
     int parse(int argc, char** argv);
 
     static std::string usage_str();
