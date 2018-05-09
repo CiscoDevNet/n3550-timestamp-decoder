@@ -2,9 +2,9 @@ timestamp-decoder
 =================
 
 This utility decodes the [ExaLINK Fusion](http://exablaze.com/exalink-fusion)
-timestamped output stream.  It can capture & decode timestamped traffic
-directly using an [ExaNIC](http://exablaze.com/exanic-x10) interface or it
-can load in a pcap file.
+and ExaLINK Fusion HPT timestamped output stream.  It can capture & decode
+timestamped traffic directly using an [ExaNIC](http://exablaze.com/exanic-x10)
+interface or it can load in a pcap file.
 
 The ExaLINK Fusion allows any packets flowing through it to be mirrored out
 to a port, where timestamping can then be enabled.  In `fcs` or `fcs-compat` modes,
@@ -15,6 +15,10 @@ is inserted between the end of the payload and before the FCS.
 
 Every second, the ExaLINK Fusion will send a special packet called a
 keyframe, which maps the counter value to nanosecond UTC time.
+
+This utility also supports decoding of the ExaLINK Fusion HPT timestamp format.
+This is a 16 byte trailer appended to each packet which contains a picosecond
+resolution timestamp and metadata to identify the source of the packet.
 
 ## Requirements
 
@@ -29,43 +33,53 @@ keyframe, which maps the counter value to nanosecond UTC time.
 ## Usage
 
 ```text
-$ ./build/timestamp-decoder
-Built without support for direct ExaNIC capture
+Usage: timestamp-decoder [options]
+Built with support for direct ExaNIC capture
+Input options:
   --read <arg>      pcap file input, or exanic interface name
-  --write <arg>     file for output, - for std out, or ending in .pcap
   --count <arg>     number of records to read, 0 for all
+  --no-promisc, -p  do not attempt to put interface in promiscuous mode
+
+Output options:
+  --write <arg>     file for output, - for stdout, or ending in .pcap
   --date <arg>      date-time format to use for output
   --all             write all packets, including keyframes
-  --offset <arg>    hw timestamp offset from the end of packet:
-                    4 if the timestamp mode is FCS,
-                    8 if the timestamp mode is append
-  --ignore-fcs      use this to skip FCS checks
-  --no-promisc, -p  do not attempt to put interface in promiscuous mode
+  --no-payload      don't write packet contents to stdout
+
+Timestamp options:
+  --32-bit          parse 32 bit timestamps
+  --trailer         parse Exablaze timestamp trailers
+  --offset <arg>    timestamp offset from the end of packet
+  --no-fix-fcs      don't rewrite 32 bit timestamp with correct FCS
+
+Other options:
   --verbose,    -v  specify more often to be more verbose
   --help,       -h  show this help and exit
 ```
 
+This utility will attempt to automatically detect the type of timestamp present
+in the input stream and the position of the timestamp in the packet.
+Automatic detection can be disabled by specifying the timestamp type using the
+`--32-bit` or `--trailer` options, and the timestamp position using the
+`--offset` option.
+
 ## Examples
 
-* Read data from exanic0:0 and decode+dump to stdout
-(mirror timestamp modes `fcs` or `fcs-compat`):
-
-`$ build/timestamp-decoder --read exanic0:0 --write -`
-
-* Read data from exanic0:0 and decode+write to a pcap file
-(mirror timetamp modes `append` or `append-compat`):
-
-`$ build/timestamp-decoder --read exanic0:0 --write decode.pcap --offset 8`
-
-* Capture 60s worth of data from an interface that does not capture FCS,
-then decode+dump to stdout (mirror timetamp modes `append` or `append-compat`):
+Read data from exanic0:0, decode timestamps (using automatic timestamp format
+detection), and dump to stdout:
 
 ```text
-$ sudo timeout 60 tcpdump -i eth0 -w raw.pcap
-$ build/timestamp-decoder --read raw.pcap --write - --ignore-fcs
+$ timestamp-decoder --read exanic0:0
 ```
 
-* Configure interface `eth2` to receive frames with a bad FCS, receive 60s
+Read data from a pcap file, decode timestamps (using automatic timestamp format
+detection), and write to a pcap file:
+
+```text
+$ timestamp-decoder --read raw.pcap --write decode.pcap
+```
+
+Configure interface `eth2` to receive frames with a bad FCS, receive 60s
 worth of data (mirror timestamp modes `fcs` or `fcs-compat`), then decode & write
 out (note not all interfaces will support this ethtool option):
 
@@ -73,33 +87,12 @@ out (note not all interfaces will support this ethtool option):
 $ sudo ethtool -K eth2 rx-fcs on
 $ sudo ethtool -K eth2 rx-all on
 $ sudo timeout 60 tcpdump -i eth2 -w raw.pcap
-$ build/timestamp-decoder --read raw.pcap --write decode.pcap
+$ timestamp-decoder --read raw.pcap --write decode.pcap --32-bit --offset 4
 ```
 
-* Use verbose mode to diagnose a problem with getting timestamps. You can
-see from the packet dump, that the last four bytes match the expected FCS.
-In other words the FCS does not contain the timestamp, presumably append
-mode was used for timestamping, and so the solution is to run with `--offset 8`
+Read data from a pcap file, decode ExaLINK Fusion HPT timestamps, and write
+timestamps (formatted as seconds since epoch) and metadata to stdout:
 
 ```text
-$ # wrong offset
-$ ./build/timestamp-decoder --read test/exa.mode.append.pcap --write /tmp/t.pcap -vvv
-options: { verbose:3 read:'test/exa.mode.append.pcap' write:'/tmp/t.pcap' date:'%Y/%m/%d-%H:%M:%S' count:0 all:0 offset:4 fcs:check }
-recoverable problem processing record #27 (72 bytes): record_time_missing
-    ffffffffffffdead beeffeed08000000 0000000000000000 0000000000000000
-    0000400000000000 0100000010111213 1415161718191a1b 1c10111213141516
-    f18841ed32aa12f1     fcs=32aa12f1
-recoverable problem processing record #28 (72 bytes): record_time_missing
-    ffffffffffffdead beeffeed08000000 0000000000000000 0000000000000000
-    0000400000000000 0200000020212223 2425262728292a2b 2c20212223242526
-    f18842929eb4ba81     fcs=9eb4ba81
-recoverable problem processing record #29 (72 bytes): record_time_missing
-    ffffffffffffdead beeffeed08000000 0000000000000000 0000000000000000
-    0000400000000000 0300000030313233 3435363738393a3b 3c30313233343536
-    f1884331339794a1     fcs=339794a1
-Packets: read 37, key frames 33, written 0, errors 3
-$ # correct offset
-$ ./build/timestamp-decoder --read test/exa.mode.append.pcap --write /tmp/t.pcap -vvv --offset 8
-options: { verbose:3 read:'test/exa.mode.append.pcap' write:'/tmp/t.pcap' date:'%Y/%m/%d-%H:%M:%S' count:0 all:0 offset:8 fcs:check }
-Packets: read 37, key frames 33, written 3, errors 0
+$ timestamp-decoder --read raw.pcap --trailer --no-payload --date '%s'
 ```
