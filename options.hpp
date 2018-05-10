@@ -30,7 +30,7 @@ struct write_options
     std::string dest = "-";
     bool write_keyframes = false;
     bool write_micros = false;
-    bool write_clock_times = true;
+    bool write_clock_times = false;
     bool write_packet = true;
     std::string text_date_format = "%Y/%m/%d-%H:%M:%S";
 };

@@ -33,23 +33,26 @@ resolution timestamp and metadata to identify the source of the packet.
 ## Usage
 
 ```text
-Usage: timestamp-decoder [options]
-Built with support for direct ExaNIC capture
+Usage: build/timestamp-decoder [options]
+Decode timestamped packet streams produced by the ExaLINK Fusion and
+ExaLINK Fusion HPT.
+
 Input options:
-  --read <arg>      pcap file input, or exanic interface name
-  --count <arg>     number of records to read, 0 for all
+  --read <file>     pcap file input, or ExaNIC interface name
+  --count <n>       number of records to read, 0 for all
   --no-promisc, -p  do not attempt to put interface in promiscuous mode
 
 Output options:
-  --write <arg>     file for output, - for stdout, or ending in .pcap
-  --date <arg>      date-time format to use for output
+  --write <file>    file for output, - for stdout, or ending in .pcap
+  --date-format <s> date-time format to use for output
   --all             write all packets, including keyframes
+  --capture-time    write capture time to stdout
   --no-payload      don't write packet contents to stdout
 
 Timestamp options:
   --32-bit          parse 32 bit timestamps
   --trailer         parse Exablaze timestamp trailers
-  --offset <arg>    timestamp offset from the end of packet
+  --offset <n>      timestamp offset from the end of packet
   --no-fix-fcs      don't rewrite 32 bit timestamp with correct FCS
 
 Other options:
@@ -94,5 +97,5 @@ Read data from a pcap file, decode ExaLINK Fusion HPT timestamps, and write
 timestamps (formatted as seconds since epoch) and metadata to stdout:
 
 ```text
-$ timestamp-decoder --read raw.pcap --trailer --no-payload --date '%s'
+$ timestamp-decoder --read raw.pcap --trailer --no-payload --date-format '%s'
 ```

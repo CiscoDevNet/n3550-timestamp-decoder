@@ -7,23 +7,27 @@ int options::parse(int argc, char** argv)
 {
     static struct option long_options[] =
     {
-        {"verbose",    no_argument,       0, 'v'},
-        {"help",       no_argument,       0, 'h'},
-        {"all",        no_argument,       0, 'a'},
-        {"read",       required_argument, 0, 'r'},
-        {"write",      required_argument, 0, 'w'},
-        {"date",       required_argument, 0, 'd'},
-        {"count",      required_argument, 0, 'c'},
-        {"offset",     required_argument, 0, 'o'},
-        {"32-bit",     no_argument,       0, '3'},
-        {"trailer",    no_argument,       0, 't'},
-        {"no-fix-fcs", no_argument,       0, 'f'},
-        {"no-promisc", no_argument,       0, 'p'},
-        {"no-payload", no_argument,       0, 'n'},
-        {0, 0,                            0, 0}
+        {"verbose",      no_argument,       0, 'v'},
+        {"help",         no_argument,       0, 'h'},
+        {"all",          no_argument,       0, 'a'},
+        {"read",         required_argument, 0, 'r'},
+        {"write",        required_argument, 0, 'w'},
+        {"date-format",  required_argument, 0, 'd'},
+        {"count",        required_argument, 0, 'c'},
+        {"offset",       required_argument, 0, 'o'},
+        {"32-bit",       no_argument,       0, '3'},
+        {"trailer",      no_argument,       0, 't'},
+        {"no-fix-fcs",   no_argument,       0, 'f'},
+        {"no-promisc",   no_argument,       0, 'p'},
+        {"no-payload",   no_argument,       0, 'n'},
+        {"capture-time", no_argument,       0, 'C'},
+        {0, 0,                              0, 0}
     };
 
-    int n = 0;
+    // show usage if there are no arguments
+    if (argc == 1)
+        return 1;
+
     while (1)
     {
         int index = 0;
@@ -39,19 +43,15 @@ int options::parse(int argc, char** argv)
             write.verbose = verbose;
             break;
         case 'r':
-            ++n;
             read.source = optarg;
             break;
         case 'w':
-            ++n;
             write.dest = optarg;
             break;
         case 'd':
-            ++n;
             write.text_date_format = optarg;
             break;
         case 'c':
-            ++n;
             count = std::atoi(optarg);
             break;
         case 'a':
@@ -75,16 +75,24 @@ int options::parse(int argc, char** argv)
         case 'n':
             write.write_packet = false;
             break;
+        case 'C':
+            write.write_clock_times = true;
+            break;
         case '?':
         case 'h':
-            return 0;
+            return 1;
         default:
             return -1;
         }
     }
     if (optind < argc)
     {
-        std::cerr << argv[0] << ": unhandled arg '" << argv[optind] << "'" << std::endl;
+        std::cerr << argv[0] << ": unhandled argument '" << argv[optind] << "'" << std::endl;
+        return -1;
+    }
+    if (read.source == "")
+    {
+        std::cerr << argv[0] << ": input must be provided using the --read option" << std::endl;
         return -1;
     }
     switch (process.timestamp_format)
@@ -108,33 +116,34 @@ int options::parse(int argc, char** argv)
     default:
         if (process.time_offset_end != -1)
         {
-            std::cerr << argv[0] << ": timestamp format must be provided: "
-                      << "either --32bit or --trailer" << std::endl;
+            std::cerr << argv[0] << ": timestamp format must be specified: "
+                      << "either --32-bit or --trailer" << std::endl;
             return -1;
         }
         break;
     }
-    return n;
+    return 0;
 }
 
 std::string options::usage_str()
 {
     std::ostringstream os;
     os << "Input options:\n"
-       << "  --read <arg>      pcap file input, or exanic interface name\n"
-       << "  --count <arg>     number of records to read, 0 for all\n"
+       << "  --read <file>     pcap file input, or ExaNIC interface name\n"
+       << "  --count <n>       number of records to read, 0 for all\n"
        << "  --no-promisc, -p  do not attempt to put interface in promiscuous mode\n"
        << "\n"
        << "Output options:\n"
-       << "  --write <arg>     file for output, - for stdout, or ending in .pcap\n"
-       << "  --date <arg>      date-time format to use for output\n"
+       << "  --write <file>    file for output, - for stdout, or ending in .pcap\n"
+       << "  --date-format <s> date-time format to use for output\n"
        << "  --all             write all packets, including keyframes\n"
+       << "  --capture-time    write capture time to stdout\n"
        << "  --no-payload      don't write packet contents to stdout\n"
        << "\n"
        << "Timestamp options:\n"
        << "  --32-bit          parse 32 bit timestamps\n"
        << "  --trailer         parse Exablaze timestamp trailers\n"
-       << "  --offset <arg>    timestamp offset from the end of packet\n"
+       << "  --offset <n>      timestamp offset from the end of packet\n"
        << "  --no-fix-fcs      don't rewrite 32 bit timestamp with correct FCS\n"
        << "\n"
        << "Other options:\n"
