@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include "options.hpp"
+#include "pstime.hpp"
 
 struct read_record_t
 {
@@ -20,14 +21,14 @@ struct read_record_t
     int linktype;
     uint32_t len_capture;
     uint32_t len_orig;
-    uint64_t clock_nanos;
+    pstime_t clock_time;
     
     read_record_t(int s = read_record_t::error)
     : status(s)
     , linktype(0)
     , len_capture(0)
     , len_orig(0)
-    , clock_nanos(0)
+    , clock_time(0, 0)
     {}
 };
 

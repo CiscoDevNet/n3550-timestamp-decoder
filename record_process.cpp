@@ -3,6 +3,7 @@
 #include <netinet/ether.h>
 #include <netinet/ip.h>
 #include <pcap.h>
+#include <math.h>
 #include <limits>
 #include <iostream>
 
@@ -55,6 +56,17 @@ struct compat_keyframe
 
 } __attribute__((packed));
 
+struct exablaze_timestamp_trailer
+{
+    uint32_t original_fcs;
+    uint8_t device_id;
+    uint8_t port;
+    uint32_t seconds_since_epoch;
+    uint8_t frac_seconds[5];
+    uint8_t __reserved;
+
+} __attribute__((packed));
+
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #  define htonll(x) __bswap_64(x)
 #  define ntohll(x) __bswap_64(x)
@@ -87,23 +99,16 @@ const char* record_time_t::status_str() const
 record_process::record_process(const process_options& opt)
 : options_(opt)
 , keyframe_()
+, time_offset_end_(opt.time_offset_end)
+, timestamp_format_(opt.timestamp_format)
 {}
-
-uint64_t record_process::ticks_to_nanos(int64_t delta_ticks) const
-{
-    if (delta_ticks > std::numeric_limits<int64_t>::max()/nanos_per_sec)
-        return 0;
-    uint64_t nanos = delta_ticks * nanos_per_sec;
-    nanos /= keyframe_.freq;
-    return nanos;
-}
 
 record_time_t record_process::process_keyframe(const keyframe_data& data)
 {
     keyframe_ = data;
     record_time_t result(record_time_t::ok);
     result.is_keyframe = true;
-    result.hw_nanos = data.utc_nanos;
+    result.hw_time = ns_to_pstime(data.utc_nanos);
     return result;
 }
 
@@ -116,7 +121,7 @@ record_time_t record_process::process_exa_keyframe(const read_record_t& record, 
 
     keyframe_data data;
     data.utc_nanos = ntohll(kf->utc);
-    data.clock_nanos = record.clock_nanos;
+    data.clock_time = record.clock_time;
     data.counter = ntohll(kf->counter);
     data.freq = ntohll(kf->freq);
     return process_keyframe(data);
@@ -130,13 +135,35 @@ record_time_t record_process::process_compat_keyframe(const read_record_t& recor
 
     keyframe_data data;
     data.utc_nanos = ntohll(kf->utc);
-    data.clock_nanos = record.clock_nanos;
+    data.clock_time = record.clock_time;
     data.counter = ntohll(kf->asic_time);
     data.arista_compat = true;
     return process_keyframe(data);
 }
 
-record_time_t record_process::process(const read_record_t& record, char* buffer)
+
+int64_t record_process::ticks_since_last_keyframe(const uint32_t* hw_time)
+{
+    int64_t ticks = ntohl(*hw_time);
+    if (keyframe_.arista_compat)
+    {
+        ticks = ((ticks & ~0xff) >> 1) + (ticks & 0x7f);
+        ticks -= (keyframe_.counter & 0x7fffffff);
+        // handle tick rollover
+        if (ticks < 0)
+            ticks += 0x80000000;
+    }
+    else
+    {
+        ticks -= (keyframe_.counter & 0xffffffff);
+        // handle tick rollover
+        if (ticks < 0)
+            ticks += 0x100000000;
+    }
+    return ticks;
+}
+
+record_time_t record_process::process_32bit_timestamps(const read_record_t& record, char* buffer)
 {
     // only deal with ethernet frames
     if (record.linktype != DLT_EN10MB)
@@ -189,77 +216,164 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
         }
     }
 
-    uint32_t* packet_fcs = reinterpret_cast<uint32_t*>(end - 4);
-    const uint32_t* hw_time = reinterpret_cast<const uint32_t*>(end - options_.time_offset_end);
-
     // fallen through, so not a (recognised) keyframe
-    record_time_t result(record_time_t::ok);
 
-    // find correct FCS, unless ignoring FCS's
-    const uint32_t correct_fcs = (options_.ignore_fcs)? 0 :
-                                 crc32(0, buffer, (const char*)packet_fcs - buffer);
-
-    if (options_.use_clock_times)
+    pstime_t time_since_last_keyframe = record.clock_time - keyframe_.clock_time;
+    // keyframes published every second, allow for some missing
+    if (time_since_last_keyframe > pstime_t(5, 0))
     {
-        result.hw_nanos = record.clock_nanos;
+        // missed too many keyframes
+        return record_time_t(record_time_t::missing_recent_keyframe);
     }
-    else
+
+    if (time_offset_end_ == -1)
     {
-        // check that we have a hardware timestamp in fcs, if in FCS mode, and
-        // not ignoring fcs
-        if (correct_fcs && packet_fcs == hw_time && correct_fcs == *hw_time)
-        {
-            // no hardware timestamp in fcs, when there was one expected
-            result.status = record_time_t::record_time_missing;
-            return result;
-        }
+        // heuristics to find the timestamp offset
+        bool crc_valid = (crc32(0, buffer, end - buffer) == 0x2144DF1C);
 
-        // keyframe stored in clock time, not hardware time
-        int64_t nanos_last_keyframe = record.clock_nanos - keyframe_.clock_nanos;
-        // keyframes published every second, allow for some missing
-        if (nanos_last_keyframe > static_cast<int64_t>(5*nanos_per_sec))
-        {
-            // missed too many keyframes
-            result.status = record_time_t::missing_recent_keyframe;
-            return result;
-        }
+        int64_t ticks4 = ticks_since_last_keyframe(reinterpret_cast<const uint32_t*>(end - 4));
+        int64_t ticks8 = ticks_since_last_keyframe(reinterpret_cast<const uint32_t*>(end - 8));
 
-        int64_t ticks = ntohl(*hw_time);
-        if (!ticks)
+        int64_t diff4 = ticks4 * 1000000000 / keyframe_.freq - time_since_last_keyframe.ns();
+        int64_t diff8 = ticks8 * 1000000000 / keyframe_.freq - time_since_last_keyframe.ns();
+
+        const int64_t max_diff = 10000000;
+
+        if (-max_diff < diff4 && diff4 < max_diff && !crc_valid)
         {
-            // hw_time is never zero
-            result.status = record_time_t::record_time_zero;
-            return result;
+            // last 4 bytes is a timestamp and not the FCS
+            time_offset_end_ = 4;
+            if (options_.verbose)
+                std::cout << "Found 32 bit timestamp at offset " << time_offset_end_ <<
+                    " from end of packet" << std::endl;
+        }
+        else if (-max_diff < diff8 && diff8 < max_diff && crc_valid)
+        {
+            // last 4 bytes is valid FCS, and a valid timestamp is before the FCS
+            time_offset_end_ = 8;
+            if (options_.verbose)
+                std::cout << "Found 32 bit timestamp at offset " << time_offset_end_ <<
+                    " from end of packet" << std::endl;
         }
         else
         {
-            if (keyframe_.arista_compat)
-            {
-                ticks = ((ticks & ~0xff) >> 1) + (ticks & 0x7f);
-                ticks -= (keyframe_.counter & 0x7fffffff);
-                // handle tick rollover
-                if (ticks < 0)
-                    ticks += 0x80000000;
-            }
-            else
-            {
-                ticks -= (keyframe_.counter & 0xffffffff);
-                // handle tick rollover
-                if (ticks < 0)
-                    ticks += 0x100000000;
-            }
-            result.hw_nanos = ticks_to_nanos(ticks);
-            result.hw_nanos += keyframe_.utc_nanos;
+            // could not find a valid timestamp
+            return record_time_t(record_time_t::record_time_missing);
         }
     }
 
-    if (options_.fix_fcs && correct_fcs && correct_fcs != *packet_fcs)
+    record_time_t result(record_time_t::ok);
+
+    int64_t ticks = ticks_since_last_keyframe(reinterpret_cast<const uint32_t*>(end - time_offset_end_));
+    int64_t delta_ns = ticks * 1000000000 / keyframe_.freq;
+    result.hw_time = ns_to_pstime(keyframe_.utc_nanos + delta_ns);
+
+    if (time_offset_end_ == 4 && options_.fix_fcs)
     {
-        // copy into buffer
-        *packet_fcs = correct_fcs;
+        // overwrite timestamp with recalculated FCS
+        uint32_t* packet_fcs = reinterpret_cast<uint32_t*>(end - 4);
+        *packet_fcs = crc32(0, buffer, end - buffer - 4);
         result.fixed_fcs = true;
     }
 
     return result;
 }
 
+record_time_t record_process::process_trailer_timestamps(const read_record_t& record, char* buffer)
+{
+    // only deal with ethernet frames
+    if (record.linktype != DLT_EN10MB)
+        return record_time_t(record_time_t::unsupported_linktype);
+
+    // too short to be relevant
+    if (record.len_capture < sizeof(exablaze_timestamp_trailer))
+        return record_time_t(record_time_t::record_too_short);
+
+    // to process hardware time or fcs, we need whole packet
+    if (record.len_capture != record.len_orig)
+        return record_time_t(record_time_t::record_truncated);
+
+    char* ptr = buffer;
+    char* end = buffer + record.len_capture;
+
+    if (time_offset_end_ == -1)
+    {
+        // heuristics to find the timestamp offset
+        // timestamp is considered valid if it is within a week of the pcap time
+        const time_t max_diff = 604800;
+
+        for (unsigned extra = 0; extra <= 4; extra += 4)
+        {
+            if (end - ptr < sizeof(exablaze_timestamp_trailer) + extra)
+                continue;
+
+            const exablaze_timestamp_trailer* trailer =
+                reinterpret_cast<const exablaze_timestamp_trailer*>(end -
+                        sizeof(exablaze_timestamp_trailer) - extra);
+            time_t sec = ntohl(trailer->seconds_since_epoch);
+            time_t diff = sec - record.clock_time.sec;
+
+            if (diff < -max_diff || max_diff < diff)
+                continue;
+
+            time_offset_end_ = sizeof(exablaze_timestamp_trailer) + 4;
+            if (options_.verbose)
+                std::cout << "Found Exablaze timestamp trailer at offset " <<
+                    time_offset_end_ << " from end of packet" << std::endl;
+            break;
+        }
+
+        if (time_offset_end_ == -1)
+        {
+            // could not find a valid timestamp
+            return record_time_t(record_time_t::record_time_missing);
+        }
+    }
+
+    if (end - ptr < time_offset_end_)
+        return record_time_t(record_time_t::record_too_short);
+
+    const exablaze_timestamp_trailer* trailer =
+        reinterpret_cast<const exablaze_timestamp_trailer*>(end - time_offset_end_);
+
+    uint32_t seconds_since_epoch = ntohl(trailer->seconds_since_epoch);
+    double frac_seconds = ldexp((uint64_t(trailer->frac_seconds[0]) << 32) |
+        (uint64_t(trailer->frac_seconds[1]) << 24) | (uint64_t(trailer->frac_seconds[2]) << 16) |
+        (uint64_t(trailer->frac_seconds[3]) << 8) | uint64_t(trailer->frac_seconds[4]), -40);
+
+    record_time_t result(record_time_t::ok);
+    result.hw_time = pstime_t(seconds_since_epoch, frac_seconds * 1000000000000ULL);
+    result.device_id = trailer->device_id;
+    result.port = trailer->port;
+
+    return result;
+}
+
+record_time_t record_process::process(const read_record_t& record, char* buffer)
+{
+    switch (timestamp_format_)
+    {
+    case process_options::timestamp_format_32bit:
+        return process_32bit_timestamps(record, buffer);
+    case process_options::timestamp_format_trailer:
+        return process_trailer_timestamps(record, buffer);
+    default:
+        {
+            // look for exablaze timestamp trailer
+            record_time_t result = process_trailer_timestamps(record, buffer);
+            if (result.status == record_time_t::ok)
+            {
+                timestamp_format_ = process_options::timestamp_format_trailer;
+                return result;
+            }
+            else
+            {
+                // if trailer not found, parse as 32 bit timestamp
+                result = process_32bit_timestamps(record, buffer);
+                if (result.status == record_time_t::ok)
+                    timestamp_format_ = process_options::timestamp_format_32bit;
+                return result;
+            }
+        }
+    }
+}

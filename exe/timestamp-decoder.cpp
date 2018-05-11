@@ -35,13 +35,16 @@ enum struct return_value : int
 
 static void usage(char* exe)
 {
-    std::cout << "Usage: " << exe << "\nBuilt "
+    std::cout << "Usage: " << exe << " [options]\n"
+              << "Decode timestamped packet streams produced by the ExaLINK Fusion and\n"
+              << "ExaLINK Fusion HPT.\n\n"
+              << "Built "
 #ifdef WITH_EXANIC
                  "with"
 #else
                  "without"
 #endif
-                 " support for direct ExaNIC capture\n"
+                 " support for direct ExaNIC capture\n\n"
               << options::usage_str()
               << std::endl;
 }
@@ -94,13 +97,15 @@ int main(int argc, char** argv)
 {
     options opt;
     int ret = opt.parse(argc, argv);
-    if (ret <= 0)
+    if (ret == 1)
     {
         usage(argv[0]);
-        return ret;
+        return 0;
     }
-    if (opt.verbose > 1)
-        std::cout << "options: " << opt.to_str() << std::endl;
+    else if (ret == -1)
+    {
+        return -1;
+    }
 
     signal(SIGHUP, signal_handler);
     signal(SIGINT, signal_handler);
