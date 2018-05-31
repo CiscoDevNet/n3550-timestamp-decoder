@@ -76,6 +76,7 @@ struct pcap_record_reader : public record_reader
             record.clock_time = pstime_t(header.tv_secs, header.tv_frac * 1000UL, 9);
         else
             record.clock_time = pstime_t(header.tv_secs, header.tv_frac * 1000000ULL, 6);
+        record.is_real_time = false;
         
         size_t to_read = (record.len_capture < buffer_len) ? record.len_capture : buffer_len;
         is.read(buffer, to_read);
@@ -205,6 +206,7 @@ struct exanic_reader : public record_reader
         read_record_t record(read_record_t::ok);
         record.linktype = DLT_EN10MB;
         record.clock_time = ns_to_pstime(exanic_timestamp_to_counter(exa, timestamp));
+        record.is_real_time = true;
         record.len_capture = offset;
         record.len_orig = orig;
         return record;

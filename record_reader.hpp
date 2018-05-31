@@ -22,6 +22,7 @@ struct read_record_t
     uint32_t len_capture;
     uint32_t len_orig;
     pstime_t clock_time;
+    bool is_real_time;
     
     read_record_t(int s = read_record_t::error)
     : status(s)
@@ -29,6 +30,7 @@ struct read_record_t
     , len_capture(0)
     , len_orig(0)
     , clock_time(0, 0)
+    , is_real_time(false)
     {}
 };
 

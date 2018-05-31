@@ -299,7 +299,7 @@ record_time_t record_process::process_trailer_timestamps(const read_record_t& re
     if (time_offset_end_ == -1)
     {
         // heuristics to find the timestamp offset
-        // timestamp is considered valid if it is within a week of the pcap time
+        // timestamp is considered valid if it is within a week of the capture time
         const time_t max_diff = 604800;
 
         for (unsigned extra = 0; extra <= 4; extra += 4)
@@ -311,7 +311,13 @@ record_time_t record_process::process_trailer_timestamps(const read_record_t& re
                 reinterpret_cast<const exablaze_timestamp_trailer*>(end -
                         sizeof(exablaze_timestamp_trailer) - extra);
             time_t sec = ntohl(trailer->seconds_since_epoch);
-            time_t diff = sec - record.clock_time.sec;
+            time_t diff;
+
+            // compare to wall clock time if it is a live capture
+            if (record.is_real_time)
+                diff = sec - time(NULL);
+            else
+                diff = sec - record.clock_time.sec;
 
             if (diff < -max_diff || max_diff < diff)
                 continue;
