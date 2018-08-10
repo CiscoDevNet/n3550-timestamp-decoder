@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <stdio.h>
 #include <ctype.h>
+#include <cmath>
 
 struct pcap_writer : public record_writer
 {
@@ -57,6 +58,50 @@ struct pcap_writer : public record_writer
             os.write(buffer, header.len_capture);
         }
         return os.good()? 0 : -1;
+    }
+};
+
+struct stats_writer : public record_writer
+{
+    const write_options options;
+    uint64_t keyframes {};
+
+    double n {};
+    double mean {};
+    double var {};
+
+    std::string type() const override { return "stats"; }
+
+    stats_writer(const write_options& opt)
+    : options(opt)
+    {
+    }
+
+    ~stats_writer()
+    {
+        if (n > .0)
+            std::cout << "mean diff: " << mean << "\nstd dev: " << sqrt(var / n) << "\n";
+    }
+
+    int write(const record_time_t& time, const read_record_t& record, const char* buffer)
+    {
+        if (time.is_keyframe)
+        {
+            ++keyframes;
+            return +1;
+        }
+
+        if (time.hw_time && record.clock_time)
+        {
+            const double x = double(time.hw_time - record.clock_time);
+
+            n += 1.;
+            const double m = mean + (x - mean) / n;
+            var = var + (x - mean) * (x - m);
+            mean = m;
+        }
+
+        return 0;
     }
 };
 
@@ -176,6 +221,11 @@ std::unique_ptr<record_writer> record_writer::text(const write_options& opt)
     return std::unique_ptr<record_writer>(new text_writer(opt));
 }
 
+std::unique_ptr<record_writer> record_writer::stats(const write_options& opt)
+{
+    return std::unique_ptr<record_writer>(new stats_writer(opt));
+}
+
 std::unique_ptr<record_writer> record_writer::make(const write_options& opt) noexcept
 {
     try
@@ -189,7 +239,7 @@ std::unique_ptr<record_writer> record_writer::make(const write_options& opt) noe
         if (is_pcap)
             return record_writer::pcap(opt);
         else
-            return record_writer::text(opt);
+            return record_writer::stats(opt);
     }
     catch (std::exception& e)
     {
