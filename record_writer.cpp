@@ -82,7 +82,7 @@ struct text_writer : public record_writer
     void write_time(pstime_t time)
     {
         std::time_t ts = time.sec;
-        std::tm tm = *std::gmtime(&ts);
+        std::tm tm = *std::localtime(&ts);
         char buffer[128];
         std::size_t written = strftime(buffer, 128, options.text_date_format.c_str(), &tm);
         if (!written)
