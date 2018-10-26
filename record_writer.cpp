@@ -80,7 +80,7 @@ struct stats_writer : public record_writer
     ~stats_writer()
     {
         if (n > .0)
-            std::cout << "mean diff: " << mean << "\nstd dev: " << sqrt(var / n) << "\n";
+            std::cout << "mean diff: " << mean << "\nstd dev: " << sqrt(var / n) << "\ncount: " << n << "\n";
     }
 
     int write(const record_time_t& time, const read_record_t& record, const char* buffer)
