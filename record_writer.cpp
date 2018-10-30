@@ -23,6 +23,7 @@ struct pcap_writer : public record_writer
     {
         if (!os.good())
             throw std::invalid_argument(std::string("could not create pcap file"));
+
         pcap_file_header_t header;
         header.version_major = 2;
         header.version_minor = 4;
@@ -64,11 +65,14 @@ struct pcap_writer : public record_writer
 struct stats_writer : public record_writer
 {
     const write_options options;
-    uint64_t keyframes {};
 
     double n {};
     double mean {};
     double var {};
+
+    double n_kf {};
+    double mean_kf {};
+    double var_kf {};
 
     std::string type() const override { return "stats"; }
 
@@ -80,14 +84,28 @@ struct stats_writer : public record_writer
     ~stats_writer()
     {
         if (n > .0)
-            std::cout << "mean diff: " << mean << "\nstd dev: " << sqrt(var / n) << "\ncount: " << n << "\n";
+            std::cout << "mean diff: " << int64_t(std::round(mean * 1e9)) << "ns\n"
+                      << "std dev: " << int64_t(std::round(sqrt(var / n) * 1e9)) << "ns\n"
+                      << "frames: " << int64_t(n) << "\n"
+                      << "mean kf ticks: : " << int64_t(std::round(mean_kf)) << "\n"
+                      << "std dev ticks: " << sqrt(var_kf / n_kf) << "\n"
+                      << "keyframes: " << int64_t(n_kf) << "\n";
     }
 
     int write(const record_time_t& time, const read_record_t& record, const char* buffer)
     {
         if (time.is_keyframe)
         {
-            ++keyframes;
+            if (time.ticks_since_last_keyframe)
+            {
+                const double x = double(time.ticks_since_last_keyframe);
+
+                n_kf += 1.;
+                const double m = mean_kf + (x - mean_kf) / n_kf;
+                var_kf = var_kf + (x - mean_kf) * (x - m);
+                mean_kf = m;
+            }
+
             return +1;
         }
 
@@ -234,12 +252,14 @@ std::unique_ptr<record_writer> record_writer::make(const write_options& opt) noe
          * Choose pcap if the arg ends with standard pcap extention.
          */
         const size_t dst_len = opt.dest.size();
-        const bool is_pcap = (dst_len>5 && opt.dest.substr(dst_len-5) == ".pcap");
+        const bool is_pcap = (dst_len > 5 && opt.dest.substr(dst_len - 5) == ".pcap");
 
         if (is_pcap)
             return record_writer::pcap(opt);
         else
-            return record_writer::stats(opt);
+            return !opt.dest.compare("stats") ?
+                record_writer::stats(opt) :
+                record_writer::text(opt);
     }
     catch (std::exception& e)
     {

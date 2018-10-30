@@ -28,6 +28,7 @@ struct record_time_t
     pstime_t hw_time;
     int device_id;
     int port;
+    int64_t ticks_since_last_keyframe;
 
     record_time_t(int s = record_time_t::unspecified)
     : status(s)
@@ -36,6 +37,7 @@ struct record_time_t
     , hw_time(0, 0)
     , device_id(-1)
     , port(-1)
+    , ticks_since_last_keyframe(0)
     {}
 
     const char* status_str() const;
