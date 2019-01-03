@@ -121,6 +121,8 @@ int main(int argc, char** argv)
     if (!writer)
         return (int)return_value::initialisation;
 
+    record_time_t pt;
+    writer->prev_time = &pt;
     // pick a buffer len suitable for largest possible payload and various headers
     const size_t buffer_len = 0x10080;
     char buffer[buffer_len]; 

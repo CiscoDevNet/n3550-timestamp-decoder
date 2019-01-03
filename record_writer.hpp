@@ -8,6 +8,7 @@ struct record_time_t;
 
 struct record_writer
 {
+    record_time_t*  prev_time =NULL;
     // construct pcap writer, throw if any issues
     static std::unique_ptr<record_writer> pcap(const write_options& opt);
 
