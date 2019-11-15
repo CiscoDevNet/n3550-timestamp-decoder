@@ -326,7 +326,7 @@ record_time_t record_process::process_trailer_timestamps(const read_record_t& re
             if (diff < -max_diff || max_diff < diff)
                 continue;
 
-            time_offset_end_ = sizeof(exablaze_timestamp_trailer) + 4;
+            time_offset_end_ = sizeof(exablaze_timestamp_trailer) + extra;
             if (options_.verbose)
                 std::cout << "Found Exablaze timestamp trailer at offset " <<
                     time_offset_end_ << " from end of packet" << std::endl;
