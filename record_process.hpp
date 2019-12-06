@@ -79,6 +79,6 @@ private:
     record_time_t process_compat_keyframe(const read_record_t& record, const char* keyframe, size_t len);
 
     record_time_t process_32bit_timestamps(const read_record_t& record, char* buffer);
-    record_time_t process_trailer_timestamps(const read_record_t& record, char* buffer);
+    record_time_t process_trailer_timestamps(const read_record_t& record, char* buffer, bool force_trailer_mode);
 };
 

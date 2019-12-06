@@ -279,7 +279,7 @@ record_time_t record_process::process_32bit_timestamps(const read_record_t& reco
     return result;
 }
 
-record_time_t record_process::process_trailer_timestamps(const read_record_t& record, char* buffer)
+record_time_t record_process::process_trailer_timestamps(const read_record_t& record, char* buffer, bool force_trailer_mode)
 {
     // only deal with ethernet frames
     if (record.linktype != DLT_EN10MB)
@@ -296,8 +296,16 @@ record_time_t record_process::process_trailer_timestamps(const read_record_t& re
     char* ptr = buffer;
     char* end = buffer + record.len_capture;
 
-    if (time_offset_end_ == -1)
+    if (force_trailer_mode)
     {
+        time_offset_end_ = sizeof(exablaze_timestamp_trailer);
+        if (options_.verbose)
+            std::cout << "Exablaze timestamp trailer forced to offset " <<
+                time_offset_end_ << " from end of packet" << std::endl;
+    }
+    else if (time_offset_end_ == -1)
+    {
+
         // heuristics to find the timestamp offset
         // timestamp is considered valid if it is within a week of the capture time
         const time_t max_diff = 604800;
@@ -362,11 +370,11 @@ record_time_t record_process::process(const read_record_t& record, char* buffer)
     case process_options::timestamp_format_32bit:
         return process_32bit_timestamps(record, buffer);
     case process_options::timestamp_format_trailer:
-        return process_trailer_timestamps(record, buffer);
+        return process_trailer_timestamps(record, buffer, true);
     default:
         {
             // look for exablaze timestamp trailer
-            record_time_t result = process_trailer_timestamps(record, buffer);
+            record_time_t result = process_trailer_timestamps(record, buffer, false);
             if (result.status == record_time_t::ok)
             {
                 timestamp_format_ = process_options::timestamp_format_trailer;
