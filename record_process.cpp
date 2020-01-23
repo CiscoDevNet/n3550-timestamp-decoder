@@ -105,8 +105,12 @@ record_process::record_process(const process_options& opt)
 
 record_time_t record_process::process_keyframe(const keyframe_data& data)
 {
-    keyframe_ = data;
     record_time_t result(record_time_t::ok);
+
+    if (keyframe_.counter && data.counter)
+        result.ticks_since_last_keyframe = data.counter - keyframe_.counter;
+
+    keyframe_ = data;
     result.is_keyframe = true;
     result.hw_time = ns_to_pstime(data.utc_nanos);
     return result;

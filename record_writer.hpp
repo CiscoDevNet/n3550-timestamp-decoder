@@ -13,6 +13,9 @@ struct record_writer
 
     // construct text writer for file or terminal, throw if any issues
     static std::unique_ptr<record_writer> text(const write_options& opt);
+
+    // construct statistics collectiing writer
+    static std::unique_ptr<record_writer> stats(const write_options& opt);
     
     // pick writer type to construct using name of output
     static std::unique_ptr<record_writer> make(const write_options& opt) noexcept;
